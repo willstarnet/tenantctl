@@ -55,8 +55,8 @@ const groupRoutes: MockRoute[] = [
       return page([SALES, KIOSK].filter((g) => filter.includes(`'${g.displayName}'`)));
     },
   },
-  { path: `/groups/${SALES.id}/members/$count`, reply: { body: '42', headers: { 'content-type': 'text/plain' } } },
-  { path: `/groups/${KIOSK.id}/members/$count`, reply: { body: '3', headers: { 'content-type': 'text/plain' } } },
+  { path: `/groups/${SALES.id}/members`, reply: { body: { '@odata.count': 42, value: [{ id: 'm1' }] } } },
+  { path: `/groups/${KIOSK.id}/members`, reply: { body: { '@odata.count': 3, value: [{ id: 'm2' }] } } },
 ];
 
 const namesBatch = batchRoute((url) => {

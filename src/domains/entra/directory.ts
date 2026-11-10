@@ -270,8 +270,11 @@ const groupCommands: AnyCommand[] = [
           })
           .then((r) => r.items),
         memberCount: ctx.graph
-          .get<string | number>(`/groups/${seg(id)}/members/$count`, { advanced: true })
-          .then((n) => Number(n)),
+          .get<{ '@odata.count'?: number }>(`/groups/${seg(id)}/members`, {
+            query: { $count: true, $top: 1, $select: 'id' },
+            advanced: true,
+          })
+          .then((r) => r['@odata.count'] ?? null),
         skus: licensed ? skuPartNumbers(ctx) : Promise.resolve({} as Record<string, string>),
       });
       if (ctx.full) return { ...group, owners: extra.owners, memberCount: extra.memberCount };

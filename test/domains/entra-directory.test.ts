@@ -88,7 +88,7 @@ describe('groups', () => {
           path: `/groups/${GROUP_ID}/owners`,
           reply: page([{ id: USER_ID, displayName: 'Jane Doe', userPrincipalName: 'jane@contoso.com' }]),
         },
-        { path: `/groups/${GROUP_ID}/members/$count`, reply: { body: '42' } },
+        { path: `/groups/${GROUP_ID}/members`, reply: { body: { '@odata.count': 42, value: [{ id: USER_ID }] } } },
         { path: '/subscribedSkus', reply: page([{ skuId: 'sku-e3', skuPartNumber: 'ENTERPRISEPACK' }]) },
       ],
     );
@@ -98,7 +98,7 @@ describe('groups', () => {
       owners: [{ displayName: 'Jane Doe', userPrincipalName: 'jane@contoso.com' }],
       licenses: [{ sku: 'ENTERPRISEPACK' }],
     });
-    expect(calls.find((c) => c.path.endsWith('$count'))?.headers.ConsistencyLevel).toBe('eventual');
+    expect(calls.find((c) => c.path.endsWith('/members'))?.headers.ConsistencyLevel).toBe('eventual');
   });
 
   test('add-member resolves each member and reports already-present ones without failing the rest', async () => {

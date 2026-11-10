@@ -143,9 +143,11 @@ export async function listAssignments(ctx: Context, subject: Subject): Promise<A
 
 async function memberCount(ctx: Context, groupId: string): Promise<number | null> {
   try {
-    const count = await ctx.graph.get<string | number>(`/groups/${seg(groupId)}/members/$count`, { advanced: true });
-    const value = Number(count);
-    return Number.isFinite(value) ? value : null;
+    const r = await ctx.graph.get<{ '@odata.count'?: number }>(`/groups/${seg(groupId)}/members`, {
+      query: { $count: true, $top: 1, $select: 'id' },
+      advanced: true,
+    });
+    return r['@odata.count'] ?? null;
   } catch {
     return null;
   }
