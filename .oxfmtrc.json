@@ -1,0 +1,13 @@
+{
+  "useTabs": false,
+  "tabWidth": 2,
+  "printWidth": 120,
+  "singleQuote": true,
+  "quoteProps": "as-needed",
+  "trailingComma": "all",
+  "semi": true,
+  "arrowParens": "always",
+  "bracketSpacing": true,
+  "sortPackageJson": false,
+  "ignorePatterns": ["node_modules", "dist", "bun.lock"]
+}

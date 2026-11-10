@@ -1,0 +1,10 @@
+node_modules/
+dist/
+*.log
+.env
+.env.*
+*.pem
+*.key
+*.pfx
+.DS_Store
+coverage/
