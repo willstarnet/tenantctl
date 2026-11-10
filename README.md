@@ -225,6 +225,7 @@ or permission), `broken` (a bug in this tool) or `skipped` (no sample data), and
 
 - [docs/COMMANDS.md](docs/COMMANDS.md): every command (generated)
 - [docs/PERMISSIONS.md](docs/PERMISSIONS.md): Graph permissions per command (generated)
+- [docs/HANDOFF.md](docs/HANDOFF.md): current state, what's verified live, open items, lessons learned
 - `docs/domains/*.md`: per area, a map from tasks to commands, licensing prerequisites, and what Graph can't do
   (and which tool can)
 - [AGENTS.md](AGENTS.md): how to add commands
