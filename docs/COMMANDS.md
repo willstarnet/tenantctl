@@ -1520,7 +1520,7 @@ Managed devices, compliance, configuration, apps, Autopilot, remote actions
 
 List Intune managed devices with filters for user, OS, compliance, staleness and ownership
 
-Start here for "which devices does Jane have", "show non-compliant Windows laptops" or "find devices that stopped checking in". daysSinceLastSync > 30 usually means the device is lost, retired or reimaged. --compliance and --stale-days are filtered by Graph; --user/--os/--ownership/--search use filters Intune accepts but does not document, and fall back to client-side filtering (slower) if Graph rejects them. Next: `devices get` for detail, `devices compliance` for why a device is non-compliant.
+Start here for "which devices does Jane have", "show non-compliant Windows laptops" or "find devices that stopped checking in". daysSinceLastSync > 30 usually means the device is lost, retired or reimaged. --compliance and --stale-days are filtered by Graph; --user/--os/--ownership use filters Intune accepts but does not document, and fall back to client-side filtering (slower) if Graph rejects them. --search is always applied client-side, so pair it with another filter in a large tenant. Next: `devices get` for detail, `devices compliance` for why a device is non-compliant.
 
 ```
 m365 intune devices list [options]

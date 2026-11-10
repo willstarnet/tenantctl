@@ -114,7 +114,22 @@ export interface DeviceClause {
   filter: string;
   /** Listed as filterable in the managedDevice docs (complianceState, lastSyncDateTime, enrolledDateTime). */
   documented: boolean;
+  /** Never sent to Graph: Intune accepts the filter but returns wrong results, so only `test` applies. */
+  clientOnly?: boolean;
   test: (device: ManagedDevice) => boolean;
+}
+
+/**
+ * Devices whose primary user is `user`. Intune rejects `userId eq` with 400, and `/users/{id}/managedDevices`
+ * returned none of one user's two devices in a live check of 59 users (2026-11-10), so match the primary user's UPN,
+ * which Intune filters case-insensitively but does not document. If Graph rejects it, the scan matches on userId.
+ */
+export function primaryUserClause(user: { id: string; userPrincipalName: string }): DeviceClause {
+  return {
+    filter: `userPrincipalName eq ${odata(user.userPrincipalName)}`,
+    documented: false,
+    test: (device) => device.userId === user.id,
+  };
 }
 
 /**
@@ -143,10 +158,13 @@ export async function scan<T>(
   return { items, truncated: false };
 }
 
+const joinClauses = (clauses: DeviceClause[]) =>
+  clauses.length ? clauses.map((c) => `(${c.filter})`).join(' and ') : undefined;
+
 /**
  * List managed devices with server-side filtering. The managedDevice docs only promise $filter on a few
- * properties; others (operatingSystem, ownership, userId, deviceName, serialNumber) work in practice but are
- * undocumented, so on a 400 the undocumented clauses move client-side instead of failing the command.
+ * properties; others (operatingSystem, ownership, userPrincipalName, deviceName, serialNumber) work in practice but
+ * are undocumented, so on a 400 the undocumented clauses move client-side instead of failing the command.
  */
 export async function listDevices(
   ctx: Context,
@@ -154,20 +172,22 @@ export async function listDevices(
   limit: number,
   select = DEVICE_SELECT,
 ): Promise<ListResult<ManagedDevice>> {
-  const filter = clauses.length ? clauses.map((c) => `(${c.filter})`).join(' and ') : undefined;
+  const local = clauses.filter((c) => c.clientOnly);
+  const remote = clauses.filter((c) => !c.clientOnly);
+  const load = (server: DeviceClause[], client: DeviceClause[]) => {
+    const query = { $select: select, $filter: joinClauses(server) };
+    if (!client.length) return ctx.graph.list<ManagedDevice>(DEVICES_PATH, { query, limit });
+    return scan<ManagedDevice>(ctx, DEVICES_PATH, query, (device) => client.every((c) => c.test(device)), limit);
+  };
   try {
-    return await ctx.graph.list<ManagedDevice>(DEVICES_PATH, { query: { $select: select, $filter: filter }, limit });
+    return await load(remote, local);
   } catch (error) {
-    const client = clauses.filter((c) => !c.documented);
-    if (!(error instanceof CliError && error.status === 400) || !client.length) throw error;
-    const server = clauses.filter((c) => c.documented);
-    ctx.log(`Graph rejected the device filter; applying ${client.map((c) => c.filter).join(' and ')} client-side.`);
-    return scan<ManagedDevice>(
-      ctx,
-      DEVICES_PATH,
-      { $select: select, $filter: server.length ? server.map((c) => `(${c.filter})`).join(' and ') : undefined },
-      (device) => client.every((c) => c.test(device)),
-      limit,
+    const moved = remote.filter((c) => !c.documented);
+    if (!(error instanceof CliError && error.status === 400) || !moved.length) throw error;
+    ctx.log(`Graph rejected the device filter; applying ${moved.map((c) => c.filter).join(' and ')} client-side.`);
+    return load(
+      remote.filter((c) => c.documented),
+      [...moved, ...local],
     );
   }
 }

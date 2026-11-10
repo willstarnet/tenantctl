@@ -94,8 +94,10 @@ assign/unassign` and `intune assignments` for settings catalog policies, `apps s
 The managedDevice docs only promise `$filter` on `complianceState`, `lastSyncDateTime` and `enrolledDateTime`.
 `devices list` also sends filters on user, OS, ownership, name and serial that Intune accepts in practice; if Graph
 rejects them, the CLI retries with only the documented filters and applies the rest client-side (slower on large
-tenants; a note is printed to stderr). `apps list --search`, `autopilot list --user` and `--failing-only` filter
-client-side.
+tenants; a note is printed to stderr). The user filter is `userPrincipalName eq`: Intune rejects `userId eq`, and
+`/users/{id}/managedDevices` omits some users' devices. `apps list --search`, `autopilot list --user`,
+`--failing-only` and `devices list --search` filter client-side; the last because Intune returns an empty page for
+`startswith()` inside an `or`.
 
 ## Not available via Graph
 

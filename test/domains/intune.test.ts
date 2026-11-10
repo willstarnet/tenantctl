@@ -119,16 +119,48 @@ describe('devices list', () => {
     });
   });
 
-  test('--user resolves the user and filters on userId', async () => {
-    const { calls } = await runCommand(
+  test('--user filters on the primary user UPN, and matches userId when Graph rejects that filter', async () => {
+    const jane = {
+      path: '/users/jane@contoso.com',
+      reply: { body: { id: 'u-1', userPrincipalName: 'jane@contoso.com' } },
+    };
+    const served = await runCommand(
+      list,
+      ['--user', 'jane@contoso.com'],
+      [jane, { path: DEVICES, reply: page([laptop]) }],
+    );
+    expect(served.calls[1]?.query.$filter).toBe("(userPrincipalName eq 'jane@contoso.com')");
+
+    const renamed = { ...phone, userPrincipalName: 'jane.old@contoso.com' };
+    const other = { ...laptop, id: '00000000-0000-0000-0000-000000000003', userId: 'u-2' };
+    const { outcome, calls } = await runCommand(
       list,
       ['--user', 'jane@contoso.com'],
       [
-        { path: '/users/jane@contoso.com', reply: { body: { id: 'u-1', userPrincipalName: 'jane@contoso.com' } } },
-        { path: DEVICES, reply: page([laptop]) },
+        jane,
+        {
+          path: DEVICES,
+          reply: (req) =>
+            req.query.$filter
+              ? graphError(400, 'BadRequest', 'Unsupported parameter found in query')
+              : page([renamed, other]),
+        },
       ],
     );
-    expect(calls[1]?.query.$filter).toBe("(userId eq 'u-1')");
+    expect(calls.at(-1)?.query.$filter).toBeUndefined();
+    const result = outcome.kind === 'result' ? (outcome.result as { items: { id: string }[] }) : null;
+    expect(result?.items.map((d) => d.id)).toEqual([renamed.id]);
+  });
+
+  test('--search filters client-side, because Intune returns nothing for startswith inside an or', async () => {
+    const { outcome, calls } = await runCommand(
+      list,
+      ['--search', 'f2lxyz', '--compliance', 'noncompliant'],
+      [{ path: DEVICES, reply: page([laptop, phone]) }],
+    );
+    expect(calls.map((c) => c.query.$filter)).toEqual(["(complianceState eq 'noncompliant')"]);
+    const result = outcome.kind === 'result' ? (outcome.result as { items: { id: string }[] }) : null;
+    expect(result?.items.map((d) => d.id)).toEqual([phone.id]);
   });
 
   test('when Graph rejects an undocumented filter, it is applied client-side', async () => {

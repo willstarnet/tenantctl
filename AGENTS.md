@@ -3,6 +3,8 @@
 `m365` is a Bun + TypeScript CLI that lets an AI agent (or a person) administer a Microsoft 365 tenant through
 Microsoft Graph: Entra ID, Intune, Defender, Exchange Online, SharePoint/OneDrive, Teams and service health.
 
+**Starting a new session? Read [docs/HANDOFF.md](docs/HANDOFF.md) first:** state, verification, open items, traps.
+
 The point of the project is to make a conversation like "Jane can't sign in" or "wipe the laptop Bob lost" turn
 into one or two obvious commands with compact, explainable output. Every design choice serves that.
 

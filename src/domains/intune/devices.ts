@@ -12,6 +12,7 @@ import {
   listDevices,
   type ManagedDevice,
   platformOf,
+  primaryUserClause,
   READ_CONFIG,
   READ_DEVICES,
   resolveManagedDevice,
@@ -197,8 +198,9 @@ export const commands: AnyCommand[] = [
     description:
       'Start here for "which devices does Jane have", "show non-compliant Windows laptops" or "find devices that ' +
       'stopped checking in". daysSinceLastSync > 30 usually means the device is lost, retired or reimaged. ' +
-      '--compliance and --stale-days are filtered by Graph; --user/--os/--ownership/--search use filters Intune ' +
-      'accepts but does not document, and fall back to client-side filtering (slower) if Graph rejects them. ' +
+      '--compliance and --stale-days are filtered by Graph; --user/--os/--ownership use filters Intune accepts but ' +
+      'does not document, and fall back to client-side filtering (slower) if Graph rejects them. --search is ' +
+      'always applied client-side, so pair it with another filter in a large tenant. ' +
       'Next: `devices get` for detail, `devices compliance` for why a device is non-compliant.',
     examples: [
       'm365 intune devices list --user jane@contoso.com',
@@ -232,10 +234,7 @@ export const commands: AnyCommand[] = [
     },
     async run(ctx, args) {
       const clauses: DeviceClause[] = [];
-      if (args.user) {
-        const user = await resolveUser(ctx, args.user);
-        clauses.push({ filter: `userId eq ${odata(user.id)}`, documented: false, test: (d) => d.userId === user.id });
-      }
+      if (args.user) clauses.push(primaryUserClause(await resolveUser(ctx, args.user)));
       if (args.os) {
         const os = OS_FILTERS[args.os] as { filter: string; names: string[] };
         clauses.push({
@@ -272,8 +271,10 @@ export const commands: AnyCommand[] = [
         const term = args.search;
         const lower = term.toLowerCase();
         clauses.push({
+          // Intune answers startswith() inside an `or` with an empty page instead of an error.
           filter: `startswith(deviceName,${odata(term)}) or serialNumber eq ${odata(term)}`,
           documented: false,
+          clientOnly: true,
           test: (d) =>
             (d.deviceName ?? '').toLowerCase().startsWith(lower) || (d.serialNumber ?? '').toLowerCase() === lower,
         });

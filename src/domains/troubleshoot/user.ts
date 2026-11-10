@@ -1,4 +1,4 @@
-import { odata, seg } from '../../core/graph.ts';
+import { seg } from '../../core/graph.ts';
 import { resolveUser } from '../../core/resolve.ts';
 import { type AnyCommand, type Context, defineCommand } from '../../core/types.ts';
 import { isSettledError, settle } from '../../core/util.ts';
@@ -15,7 +15,7 @@ import {
   commands as exchangeCommands,
 } from '../exchange/index.ts';
 import type { AutomaticRepliesSetting } from '../exchange/mailbox.ts';
-import { DEVICE_SELECT, listDevices } from '../intune/common.ts';
+import { DEVICE_SELECT, listDevices, primaryUserClause } from '../intune/common.ts';
 import { commands as intuneCommands, type ManagedDevice, shapeManagedDevice } from '../intune/index.ts';
 import { type Finding, permissionsOf, sortFindings, unavailable, verdict } from './findings.ts';
 import { analyzeSignins, fetchSignins, signinFindings } from './signins.ts';
@@ -283,12 +283,7 @@ export const commands: AnyCommand[] = [
         mfa: getAuthMethodsSummary(ctx, user.id),
         signins: fetchSignins(ctx, user.id, args.days),
         risk: ctx.graph.tryGet<RiskyUser>(`/identityProtection/riskyUsers/${seg(user.id)}`),
-        devices: listDevices(
-          ctx,
-          [{ filter: `userId eq ${odata(user.id)}`, documented: false, test: (d) => d.userId === user.id }],
-          25,
-          DEVICE_SELECT,
-        ),
+        devices: listDevices(ctx, [primaryUserClause(user)], 25, DEVICE_SELECT),
         skuNames: loadSkuNames(ctx),
         autoReply: loadAutoReply(ctx, user.id),
         inboxRules: mailboxRules(ctx, user.id),
