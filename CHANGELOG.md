@@ -6,6 +6,15 @@ All notable changes are listed here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- `permissions` example and the `config init --mode app` hint suggested `--mode app`; the option is
+  `--mode application`.
+
+### Removed
+
+- The Scoop bucket. Windows installs use the PowerShell install script.
+
 ## [0.2.0] - 2026-11-10
 
 ### Changed
@@ -21,7 +30,7 @@ All notable changes are listed here. The format follows
 ### Added
 
 - Prebuilt binaries for macOS (arm64, x64), Linux (x64, arm64, musl, baseline x64) and Windows (x64, arm64,
-  baseline x64), install scripts for macOS/Linux and Windows, a Homebrew tap and a Scoop bucket.
+  baseline x64), install scripts for Linux and Windows, and a Homebrew tap.
 - The Exchange "PowerShell 7 missing" hint names the install command for your OS.
 
 ## 0.1.0 - 2026-11-10 (not released)

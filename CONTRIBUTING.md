@@ -120,4 +120,4 @@ reproduces it. Test data uses `contoso.com`-style names, never real tenant data.
 ## Releases
 
 Maintainers move the `## [Unreleased]` entries under a new version heading, then push a `vX.Y.Z` tag. The release
-workflow tests, builds every target, publishes the GitHub release, and updates the Homebrew tap and Scoop bucket.
+workflow tests, builds every target, publishes the GitHub release, and updates the Homebrew tap.

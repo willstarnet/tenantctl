@@ -316,7 +316,7 @@ export const commands: AnyCommand[] = [
       }
       const next =
         mode === 'app'
-          ? 'Run `tenantctl auth login` to verify the credentials, then `tenantctl permissions --mode app` for what to grant.'
+          ? 'Run `tenantctl auth login` to verify the credentials, then `tenantctl permissions --mode application` for what to grant.'
           : 'Run `tenantctl auth login`.';
       return {
         profile: ctx.profileName,
@@ -478,7 +478,7 @@ export const commands: AnyCommand[] = [
     name: '',
     summary: 'List the Graph permissions to grant the app registration (or consent to) for this CLI',
     examples: [
-      'tenantctl permissions --mode app',
+      'tenantctl permissions --mode application',
       'tenantctl permissions --mode delegated --include-writes --by-command',
     ],
     args: [

@@ -5,13 +5,12 @@
  *
  * Writes dist/manifests/:
  *   tenantctl.rb                                Homebrew formula (for a tap such as willstarnet/homebrew-tap)
- *   tenantctl.json                              Scoop manifest (for a bucket), with checkver/autoupdate
  *   <Id>.yaml, <Id>.installer.yaml,
  *   <Id>.locale.en-US.yaml                      winget multi-file manifest (schema 1.28.0) for microsoft/winget-pkgs
  *
- * Package managers can't probe the CPU before choosing a download, so x64 Linux (Homebrew) and x64 Windows (Scoop,
- * winget) use the `-baseline` build, which runs on every x64 CPU. The AVX2 build only speeds up Bun internals this
- * CLI barely touches (it waits on Graph). install.sh / install.ps1 do probe and pick the faster build when they can.
+ * Package managers can't probe the CPU before choosing a download, so x64 Linux (Homebrew) and x64 Windows (winget)
+ * use the `-baseline` build, which runs on every x64 CPU. The AVX2 build only speeds up Bun internals this CLI
+ * barely touches (it waits on Graph). install.sh / install.ps1 do probe and pick the faster build when they can.
  */
 import { mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -91,34 +90,6 @@ ${block('linux-x64-baseline', '      ')}
 end
 `;
   await Bun.write(join(out, 'tenantctl.rb'), formula);
-}
-
-// Scoop manifest
-{
-  const x64 = asset('windows-x64-baseline');
-  const arm64 = asset('windows-arm64');
-  const download = `${HOMEPAGE}/releases/download/v$version`;
-  const manifest = {
-    version,
-    description: SUMMARY,
-    homepage: HOMEPAGE,
-    license: LICENSE,
-    architecture: {
-      '64bit': { url: x64.url, hash: x64.sha256 },
-      arm64: { url: arm64.url, hash: arm64.sha256 },
-    },
-    bin: 'tenantctl.exe',
-    checkver: { github: HOMEPAGE },
-    autoupdate: {
-      architecture: {
-        '64bit': { url: `${download}/tenantctl-windows-x64-baseline.zip` },
-        arm64: { url: `${download}/tenantctl-windows-arm64.zip` },
-      },
-      // Scoop finds the line for the downloaded file name in the release's SHA256SUMS.
-      hash: { url: '$baseurl/SHA256SUMS' },
-    },
-  };
-  await Bun.write(join(out, 'tenantctl.json'), `${JSON.stringify(manifest, null, 2)}\n`);
 }
 
 // winget manifests (version, installer, defaultLocale)

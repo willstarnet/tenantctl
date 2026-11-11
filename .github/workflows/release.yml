@@ -52,24 +52,20 @@ jobs:
 
   # Package-manager publishing (stable tags only). Each step is skipped until its secret exists:
   #   HOMEBREW_TAP_DEPLOY_KEY   SSH deploy key (write) of <owner>/homebrew-tap -> brew install <owner>/tap/tenantctl
-  #   SCOOP_BUCKET_DEPLOY_KEY   SSH deploy key (write) of <owner>/scoop-bucket -> scoop install <owner>/tenantctl
   #   WINGET_TOKEN              classic PAT (public_repo) of an account with a winget-pkgs fork -> PR to microsoft/winget-pkgs
   # A deploy key can write to its one repository only, unlike a personal access token.
-  publish-brew-scoop:
+  publish-brew:
     needs: release
     if: ${{ !contains(github.ref_name, '-') }}
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ github.token }}
       HOMEBREW_TAP_DEPLOY_KEY: ${{ secrets.HOMEBREW_TAP_DEPLOY_KEY }}
-      SCOOP_BUCKET_DEPLOY_KEY: ${{ secrets.SCOOP_BUCKET_DEPLOY_KEY }}
     steps:
-      - name: Download manifests from the release
-        if: env.HOMEBREW_TAP_DEPLOY_KEY != '' || env.SCOOP_BUCKET_DEPLOY_KEY != ''
-        run: gh release download "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --pattern 'tenantctl.rb' --pattern 'tenantctl.json' --dir manifests
       - name: Update Homebrew tap (<owner>/homebrew-tap)
         if: env.HOMEBREW_TAP_DEPLOY_KEY != ''
         run: |
+          gh release download "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --pattern 'tenantctl.rb' --dir manifests
           key="$RUNNER_TEMP/tap_key" && printf '%s\n' "$HOMEBREW_TAP_DEPLOY_KEY" > "$key" && chmod 600 "$key"
           export GIT_SSH_COMMAND="ssh -i $key -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
           git clone --depth 1 "git@github.com:${GITHUB_REPOSITORY_OWNER}/homebrew-tap.git" tap
@@ -78,18 +74,6 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add Formula/tenantctl.rb
-          git commit -m "tenantctl ${GITHUB_REF_NAME#v}" && git push
-      - name: Update Scoop bucket (<owner>/scoop-bucket)
-        if: env.SCOOP_BUCKET_DEPLOY_KEY != ''
-        run: |
-          key="$RUNNER_TEMP/bucket_key" && printf '%s\n' "$SCOOP_BUCKET_DEPLOY_KEY" > "$key" && chmod 600 "$key"
-          export GIT_SSH_COMMAND="ssh -i $key -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
-          git clone --depth 1 "git@github.com:${GITHUB_REPOSITORY_OWNER}/scoop-bucket.git" bucket
-          mkdir -p bucket/bucket && cp manifests/tenantctl.json bucket/bucket/tenantctl.json
-          cd bucket
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add bucket/tenantctl.json
           git commit -m "tenantctl ${GITHUB_REF_NAME#v}" && git push
 
   publish-winget:

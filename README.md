@@ -24,10 +24,10 @@ tenantctl health overview                           # is it us, or is Microsoft 
 
 ## Install
 
-macOS / Linux:
+macOS and Linux:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/willstarnet/tenantctl/main/scripts/install.sh | sh
+brew install willstarnet/tap/tenantctl
 ```
 
 Windows (PowerShell):
@@ -36,16 +36,8 @@ Windows (PowerShell):
 irm https://raw.githubusercontent.com/willstarnet/tenantctl/main/scripts/install.ps1 | iex
 ```
 
-Or with a package manager:
-
-```sh
-brew install willstarnet/tap/tenantctl
-scoop bucket add willstarnet https://github.com/willstarnet/scoop-bucket; scoop install willstarnet/tenantctl
-```
-
-Builds are published for macOS (arm64, x64), Linux (x64, arm64, glibc and musl) and Windows (x64, arm64) on the
-[releases page](https://github.com/willstarnet/tenantctl/releases). The install scripts verify the download
-against `SHA256SUMS` and need no admin rights. To build from source, see [CONTRIBUTING.md](CONTRIBUTING.md).
+Without Homebrew on Linux: `curl -fsSL https://raw.githubusercontent.com/willstarnet/tenantctl/main/scripts/install.sh | sh`.
+Binaries for every platform are on the [releases page](https://github.com/willstarnet/tenantctl/releases).
 
 ## Sign in
 

@@ -2,8 +2,8 @@
 
 ## Supported versions
 
-Only the latest release gets fixes. Update by re-running the install script, or with
-`brew upgrade tenantctl` / `scoop update tenantctl`.
+Only the latest release gets fixes. Update with `brew upgrade tenantctl`, or on Windows by re-running the install
+command.
 
 ## Reporting a vulnerability
 

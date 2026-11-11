@@ -5704,6 +5704,6 @@ tenantctl permissions [options]
 Examples:
 
 ```sh
-tenantctl permissions --mode app
+tenantctl permissions --mode application
 tenantctl permissions --mode delegated --include-writes --by-command
 ```
