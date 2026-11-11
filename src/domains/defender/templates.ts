@@ -154,7 +154,7 @@ export function renderTemplate(name: string, params: Record<string, string>): st
   const template = HUNT_TEMPLATES[name];
   if (!template) {
     throw new CliError('USAGE', `Unknown hunting template "${name}"`, {
-      hint: `Run \`m365 defender hunt templates\`. Available: ${Object.keys(HUNT_TEMPLATES).join(', ')}.`,
+      hint: `Run \`tenantctl defender hunt templates\`. Available: ${Object.keys(HUNT_TEMPLATES).join(', ')}.`,
     });
   }
   const missing = Object.keys(template.params).filter((key) => !params[key]);

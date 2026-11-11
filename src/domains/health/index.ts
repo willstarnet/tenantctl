@@ -154,8 +154,8 @@ export const commands: AnyCommand[] = [
     description:
       'First check when several users report the same problem ("Outlook is down", "Teams calls failing"). ' +
       '`degraded` lists services with an ongoing issue; `recentlyRestored` were fixed but not yet back to ' +
-      'operational. Next: `m365 health issues --service "<service>" --active` for details.',
-    examples: ['m365 health overview'],
+      'operational. Next: `tenantctl health issues --service "<service>" --active` for details.',
+    examples: ['tenantctl health overview'],
     args: [],
     risk: 'read',
     permissions: HEALTH_PERMISSIONS,
@@ -176,9 +176,9 @@ export const commands: AnyCommand[] = [
     summary: 'List service health incidents and advisories',
     description:
       'incident = significant user impact; advisory = limited impact or a subset of users. --active hides ' +
-      'resolved ones. --service takes the name shown by `m365 health overview` (e.g. "Exchange Online", ' +
-      '"Microsoft Teams"). --days counts by last update. Next: `m365 health issue <id>` for the timeline.',
-    examples: ['m365 health issues --active', 'm365 health issues --service "Microsoft Teams" --days 7'],
+      'resolved ones. --service takes the name shown by `tenantctl health overview` (e.g. "Exchange Online", ' +
+      '"Microsoft Teams"). --days counts by last update. Next: `tenantctl health issue <id>` for the timeline.',
+    examples: ['tenantctl health issues --active', 'tenantctl health issues --service "Microsoft Teams" --days 7'],
     args: [
       { name: 'service', type: 'string', description: 'Service name, e.g. "Exchange Online".' },
       { name: 'active', type: 'boolean', description: 'Only unresolved issues.' },
@@ -214,7 +214,7 @@ export const commands: AnyCommand[] = [
     description:
       "`posts` are Microsoft's updates, newest first, with HTML removed. The latest post usually has the " +
       'current status, scope of impact and next update time.',
-    examples: ['m365 health issue EX123456'],
+    examples: ['tenantctl health issue EX123456'],
     args: [
       {
         name: 'id',
@@ -252,10 +252,10 @@ export const commands: AnyCommand[] = [
     description:
       'Use for "what is changing in Teams/Exchange", "what do we need to act on". --action-required keeps ' +
       'posts with a deadline; --major keeps major changes (30 days notice). --days counts by last update. ' +
-      'Categories: preventOrFixIssue, planForChange, stayInformed. Next: `m365 health message <id>`.',
+      'Categories: preventOrFixIssue, planForChange, stayInformed. Next: `tenantctl health message <id>`.',
     examples: [
-      'm365 health messages --action-required',
-      'm365 health messages --service "Microsoft Teams" --days 30 --major',
+      'tenantctl health messages --action-required',
+      'tenantctl health messages --service "Microsoft Teams" --days 30 --major',
     ],
     args: [
       { name: 'service', type: 'string', description: 'Service name, e.g. "Microsoft Teams".' },
@@ -291,7 +291,7 @@ export const commands: AnyCommand[] = [
     domain: 'health',
     name: 'message',
     summary: 'Show one message center post with its body as plain text',
-    examples: ['m365 health message MC123456'],
+    examples: ['tenantctl health message MC123456'],
     args: [{ name: 'id', type: 'string', required: true, positional: true, description: 'Message id, e.g. MC123456.' }],
     risk: 'read',
     permissions: MESSAGE_PERMISSIONS,

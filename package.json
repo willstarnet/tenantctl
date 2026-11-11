@@ -1,14 +1,22 @@
 {
-  "name": "m365-cli",
-  "version": "0.1.0",
+  "name": "tenantctl",
+  "version": "0.2.0",
   "description": "Agent-friendly Microsoft 365 administration CLI over Microsoft Graph (Entra, Intune, Defender, SharePoint, Exchange, Teams).",
+  "license": "MIT",
+  "author": "Will Askew",
+  "homepage": "https://github.com/willstarnet/tenantctl",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/willstarnet/tenantctl.git"
+  },
+  "bugs": "https://github.com/willstarnet/tenantctl/issues",
   "type": "module",
   "private": true,
   "bin": {
-    "m365": "./src/cli.ts"
+    "tenantctl": "./src/cli.ts"
   },
   "scripts": {
-    "m365": "bun run src/cli.ts",
+    "tenantctl": "bun run src/cli.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "bun test",
     "docs": "bun run scripts/gen-docs.ts && oxfmt -c .oxfmtrc.json docs/COMMANDS.md docs/PERMISSIONS.md",
@@ -16,6 +24,7 @@
     "format:check": "oxfmt -c .oxfmtrc.json --check .",
     "build": "bun run scripts/build.ts",
     "install:local": "bun run scripts/build.ts --install",
+    "release:manifests": "bun run scripts/release-manifests.ts",
     "smoke:live": "bun run scripts/smoke-live.ts"
   },
   "dependencies": {

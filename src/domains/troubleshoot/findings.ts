@@ -40,7 +40,7 @@ export function unavailable(sections: Record<string, unknown>): { section: strin
 
 /**
  * A composite view needs what each command it composes needs. Taking the union from those commands' own
- * declarations keeps `m365 permissions` and the login scope set accurate as they change.
+ * declarations keeps `tenantctl permissions` and the login scope set accurate as they change.
  */
 export function permissionsOf(sources: AnyCommand[], ids: string[], roles: string[]): Permissions {
   const byId: Record<string, AnyCommand> = {};

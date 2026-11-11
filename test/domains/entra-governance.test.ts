@@ -412,7 +412,7 @@ describe('apps consents and revoke-consent', () => {
     expect(resultOf(second.outcome)).toMatchObject({
       delegated: [{ status: 'revoked' }, { status: 'revoked' }],
       application: [{ permission: 'Mail.Read', status: 'revoked' }],
-      next: [`m365 entra apps disable "${SP_ID}"`, expect.any(String), expect.any(String)],
+      next: [`tenantctl entra apps disable "${SP_ID}"`, expect.any(String), expect.any(String)],
     });
   });
 

@@ -73,7 +73,7 @@ export const commands: AnyCommand[] = [
       'with". sharingCapability is the tenant-wide ceiling; individual sites can only be more restrictive ' +
       '(per-site sharing settings are not in Graph). Delegated callers need SharePoint Administrator or Global ' +
       'Reader. Change sharing with `sharepoint settings set --sharing`.',
-    examples: ['m365 sharepoint settings'],
+    examples: ['tenantctl sharepoint settings'],
     args: [],
     risk: 'read',
     permissions: {
@@ -95,7 +95,7 @@ export const commands: AnyCommand[] = [
       'every site and OneDrive (e.g. to existingExternalUserSharingOnly stops all anonymous links). Levels: ' +
       'disabled < existingExternalUserSharingOnly < externalUserSharingOnly < externalUserAndGuestSharing ' +
       '(anonymous links). Needs SharePoint Administrator in delegated mode.',
-    examples: ['m365 sharepoint settings set --sharing externalUserSharingOnly'],
+    examples: ['tenantctl sharepoint settings set --sharing externalUserSharingOnly'],
     args: [
       {
         name: 'sharing',

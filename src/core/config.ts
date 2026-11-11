@@ -36,8 +36,9 @@ export interface Profile {
   /** Delegated: the account from the last `auth login --service exchange` (a separate Exchange sign-in). */
   exchangeAccount?: SignedInAccount;
   /**
-   * How a person approves destructive changes: `token` (the agent re-runs with --confirm), `tty` (typed at the
-   * terminal), `dialog` (an OS dialog), `auto` (dialog when a desktop session exists, else tty). Default auto.
+   * How a person approves destructive changes: `tty` (typed at the terminal) or `dialog` (an OS dialog) in the
+   * same run; `token` (no person: the agent re-runs with --confirm); `auto` (dialog when a desktop session exists,
+   * else tty). Default auto.
    */
   confirmMode?: ConfirmMode;
   graphUrl?: string;
@@ -62,11 +63,21 @@ export interface Secrets {
   defenderAccessToken?: string;
 }
 
+let migrated = false;
+
 export function configDir(): string {
   const env = process.env;
-  if (env.M365_CONFIG_DIR) return env.M365_CONFIG_DIR;
-  if (process.platform === 'win32' && env.APPDATA) return join(env.APPDATA, 'm365');
-  return join(env.XDG_CONFIG_HOME || join(homedir(), '.config'), 'm365');
+  if (env.TENANTCTL_CONFIG_DIR) return env.TENANTCTL_CONFIG_DIR;
+  const base =
+    process.platform === 'win32' && env.APPDATA ? env.APPDATA : env.XDG_CONFIG_HOME || join(homedir(), '.config');
+  const dir = join(base, 'tenantctl');
+  // One-time move from the folder the CLI used when it was called `m365`, so profiles and sign-ins carry over.
+  if (!migrated) {
+    migrated = true;
+    const legacy = join(base, 'm365');
+    if (!existsSync(dir) && existsSync(join(legacy, 'config.json'))) renameSync(legacy, dir);
+  }
+  return dir;
 }
 
 export function ensureConfigDir(): string {
@@ -92,7 +103,7 @@ export function loadConfig(): ConfigFile {
     return { defaultProfile: parsed.defaultProfile, profiles: parsed.profiles ?? {} };
   } catch (error) {
     throw new CliError('CONFIG', `Cannot parse ${path}: ${(error as Error).message}`, {
-      hint: 'Fix or delete the file, then run `m365 config init`.',
+      hint: 'Fix or delete the file, then run `tenantctl config init`.',
     });
   }
 }
@@ -102,7 +113,7 @@ export function saveConfig(config: ConfigFile): void {
 }
 
 export function activeProfileName(explicit?: string): string {
-  return explicit || process.env.M365_PROFILE || loadConfig().defaultProfile || 'default';
+  return explicit || process.env.TENANTCTL_PROFILE || loadConfig().defaultProfile || 'default';
 }
 
 function envBool(value: string | undefined): boolean | undefined {
@@ -117,21 +128,21 @@ export function resolveProfile(explicit?: string): { name: string; profile: Prof
   const name = activeProfileName(explicit);
   const stored = loadConfig().profiles[name];
   const env = process.env;
-  const mode = env.M365_AUTH_MODE as AuthMode | undefined;
+  const mode = env.TENANTCTL_AUTH_MODE as AuthMode | undefined;
   if (mode && mode !== 'delegated' && mode !== 'app') {
-    throw new CliError('CONFIG', `M365_AUTH_MODE must be "delegated" or "app", got "${mode}"`);
+    throw new CliError('CONFIG', `TENANTCTL_AUTH_MODE must be "delegated" or "app", got "${mode}"`);
   }
   const profile: Profile = {
     ...(stored ?? { authMode: 'delegated' }),
     ...(mode ? { authMode: mode } : {}),
-    ...(env.M365_TENANT_ID ? { tenantId: env.M365_TENANT_ID } : {}),
-    ...(env.M365_CLIENT_ID ? { clientId: env.M365_CLIENT_ID } : {}),
-    ...(env.M365_CERT_PATH ? { certificatePath: env.M365_CERT_PATH } : {}),
-    ...(env.M365_CERT_THUMBPRINT ? { certificateThumbprint: env.M365_CERT_THUMBPRINT } : {}),
-    ...(env.M365_GRAPH_URL ? { graphUrl: env.M365_GRAPH_URL } : {}),
-    ...(env.M365_AUTHORITY_HOST ? { authorityHost: env.M365_AUTHORITY_HOST } : {}),
+    ...(env.TENANTCTL_TENANT_ID ? { tenantId: env.TENANTCTL_TENANT_ID } : {}),
+    ...(env.TENANTCTL_CLIENT_ID ? { clientId: env.TENANTCTL_CLIENT_ID } : {}),
+    ...(env.TENANTCTL_CERT_PATH ? { certificatePath: env.TENANTCTL_CERT_PATH } : {}),
+    ...(env.TENANTCTL_CERT_THUMBPRINT ? { certificateThumbprint: env.TENANTCTL_CERT_THUMBPRINT } : {}),
+    ...(env.TENANTCTL_GRAPH_URL ? { graphUrl: env.TENANTCTL_GRAPH_URL } : {}),
+    ...(env.TENANTCTL_AUTHORITY_HOST ? { authorityHost: env.TENANTCTL_AUTHORITY_HOST } : {}),
   };
-  const allowWrites = envBool(env.M365_ALLOW_WRITES);
+  const allowWrites = envBool(env.TENANTCTL_ALLOW_WRITES);
   if (allowWrites !== undefined) profile.allowWrites = allowWrites;
   return { name, profile };
 }
@@ -139,11 +150,11 @@ export function resolveProfile(explicit?: string): { name: string; profile: Prof
 export function readSecrets(): Secrets {
   const env = process.env;
   return {
-    clientSecret: env.M365_CLIENT_SECRET || undefined,
-    certificatePassphrase: env.M365_CERT_PASSPHRASE || undefined,
-    accessToken: env.M365_ACCESS_TOKEN || undefined,
-    exchangeAccessToken: env.M365_EXCHANGE_ACCESS_TOKEN || undefined,
-    defenderAccessToken: env.M365_DEFENDER_ACCESS_TOKEN || undefined,
+    clientSecret: env.TENANTCTL_CLIENT_SECRET || undefined,
+    certificatePassphrase: env.TENANTCTL_CERT_PASSPHRASE || undefined,
+    accessToken: env.TENANTCTL_ACCESS_TOKEN || undefined,
+    exchangeAccessToken: env.TENANTCTL_EXCHANGE_ACCESS_TOKEN || undefined,
+    defenderAccessToken: env.TENANTCTL_DEFENDER_ACCESS_TOKEN || undefined,
   };
 }
 

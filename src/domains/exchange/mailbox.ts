@@ -163,7 +163,7 @@ async function findMessage(ctx: Context, userRef: string, ref: string) {
     });
     if (items.length > 1) {
       throw new CliError('AMBIGUOUS', `Several copies of ${ref} exist in the mailbox`, {
-        hint: 'Pass the Graph message id from `m365 exchange messages search` instead.',
+        hint: 'Pass the Graph message id from `tenantctl exchange messages search` instead.',
         details: items.map((m) => ({ id: m.id, subject: m.subject, received: m.receivedDateTime })),
       });
     }
@@ -173,7 +173,7 @@ async function findMessage(ctx: Context, userRef: string, ref: string) {
   }
   if (!message) {
     throw new CliError('NOT_FOUND', `No message ${ref} in ${user.userPrincipalName}'s mailbox`, {
-      hint: 'Find it with `m365 exchange messages search <user> --subject ...`.',
+      hint: 'Find it with `tenantctl exchange messages search <user> --subject ...`.',
     });
   }
   const folders = await resolveFolderNames(ctx, user.id, [message.parentFolderId]);
@@ -189,9 +189,9 @@ export const commands: AnyCommand[] = [
       'First stop for any mailbox question. userPurpose tells user/shared/room/equipment mailboxes apart. ' +
       'autoReplyOn is the effective out-of-office state right now (null when scheduled in a non-UTC zone). ' +
       'folders gives total/unread item counts for Inbox, Sent, Deleted and Junk (folder sizes are not exposed by ' +
-      'Graph v1.0; use `m365 exchange usage --user` for storage). Each section degrades to { error } on its own. ' +
+      'Graph v1.0; use `tenantctl exchange usage --user` for storage). Each section degrades to { error } on its own. ' +
       MAILBOX_ACCESS_NOTE,
-    examples: ['m365 exchange mailbox jane@contoso.com', 'm365 exchange mailbox "Conference Room A"'],
+    examples: ['tenantctl exchange mailbox jane@contoso.com', 'tenantctl exchange mailbox "Conference Room A"'],
     args: [USER_ARG],
     risk: 'read',
     permissions: {
@@ -250,8 +250,8 @@ export const commands: AnyCommand[] = [
     summary: "Show a mailbox's automatic replies (out of office)",
     description:
       'status is disabled, alwaysEnabled or scheduled; autoReplyOn is whether replies go out right now. Messages ' +
-      `are shown as plain text (use --full for the HTML). Change it with \`m365 exchange auto-reply set\`. ${MAILBOX_ACCESS_NOTE}`,
-    examples: ['m365 exchange auto-reply get jane@contoso.com'],
+      `are shown as plain text (use --full for the HTML). Change it with \`tenantctl exchange auto-reply set\`. ${MAILBOX_ACCESS_NOTE}`,
+    examples: ['tenantctl exchange auto-reply get jane@contoso.com'],
     args: [USER_ARG],
     risk: 'read',
     permissions: {
@@ -277,11 +277,11 @@ export const commands: AnyCommand[] = [
       '--start and --end: times with Z or an offset are converted to UTC; times without one are read in --time-zone ' +
       'or, by default, the mailbox time zone. Messages accept plain text or HTML. --external-audience: none (no ' +
       'external replies), contactsOnly, all. Common for leavers: set it on with a redirect message, then ' +
-      `\`m365 exchange auto-reply get\` to confirm. ${MAILBOX_ACCESS_NOTE}`,
+      `\`tenantctl exchange auto-reply get\` to confirm. ${MAILBOX_ACCESS_NOTE}`,
     examples: [
-      'm365 exchange auto-reply set jane@contoso.com --on --internal-message "I am out until Monday."',
-      'm365 exchange auto-reply set jane@contoso.com --scheduled --start 2026-12-20T17:00 --end 2027-01-05T08:00 --external-audience all --external-message "Out of office."',
-      'm365 exchange auto-reply set jane@contoso.com --off',
+      'tenantctl exchange auto-reply set jane@contoso.com --on --internal-message "I am out until Monday."',
+      'tenantctl exchange auto-reply set jane@contoso.com --scheduled --start 2026-12-20T17:00 --end 2027-01-05T08:00 --external-audience all --external-message "Out of office."',
+      'tenantctl exchange auto-reply set jane@contoso.com --off',
     ],
     args: [
       USER_ARG,
@@ -366,11 +366,11 @@ export const commands: AnyCommand[] = [
       'Use for "did Jane receive the invoice from X?" or to locate a phishing message before purging it. Returns ' +
       'metadata only, never bodies. --from with a full address and no --subject uses an exact $filter sorted ' +
       'newest first; --subject or a sender name uses Outlook keyword search (word matches, sorted by sent date, at ' +
-      'most 1000 results). Pass the `id` (or internetMessageId) to `m365 exchange messages delete`. For "did it ' +
-      `arrive at all", use \`m365 exchange trace\` instead. ${MAILBOX_ACCESS_NOTE}`,
+      'most 1000 results). Pass the `id` (or internetMessageId) to `tenantctl exchange messages delete`. For "did it ' +
+      `arrive at all", use \`tenantctl exchange trace\` instead. ${MAILBOX_ACCESS_NOTE}`,
     examples: [
-      'm365 exchange messages search jane@contoso.com --from billing@vendor.com --since 7',
-      'm365 exchange messages search jane@contoso.com --subject "invoice overdue" --folder junk',
+      'tenantctl exchange messages search jane@contoso.com --from billing@vendor.com --since 7',
+      'tenantctl exchange messages search jane@contoso.com --subject "invoice overdue" --folder junk',
     ],
     args: [
       USER_ARG,
@@ -438,8 +438,8 @@ export const commands: AnyCommand[] = [
       'per call: repeat per recipient. For tenant-wide purges use Microsoft Purview / Defender ' +
       `Threat Explorer. ${MAILBOX_ACCESS_NOTE}`,
     examples: [
-      'm365 exchange messages delete jane@contoso.com AAMkAGI2...',
-      'm365 exchange messages delete jane@contoso.com "<abc123@phish.example>" --hard',
+      'tenantctl exchange messages delete jane@contoso.com AAMkAGI2...',
+      'tenantctl exchange messages delete jane@contoso.com "<abc123@phish.example>" --hard',
     ],
     args: [
       USER_ARG,
@@ -495,7 +495,7 @@ export const commands: AnyCommand[] = [
       'delegateWithoutPrivateEventAccess / delegateWithPrivateEventAccess (delegates who also get meeting ' +
       'messages), custom. "My Organization" has no address and is the default for everyone internal. ' +
       MAILBOX_ACCESS_NOTE,
-    examples: ['m365 exchange calendar permissions jane@contoso.com'],
+    examples: ['tenantctl exchange calendar permissions jane@contoso.com'],
     args: [USER_ARG],
     risk: 'read',
     permissions: {
@@ -535,7 +535,7 @@ export const commands: AnyCommand[] = [
       'Expands recurring meetings into occurrences. Times are in the mailbox time zone (shown in timeZone) when ' +
       'it can be read, else UTC. Useful for "is Jane free Thursday" or checking a room mailbox\'s bookings. ' +
       MAILBOX_ACCESS_NOTE,
-    examples: ['m365 exchange calendar events jane@contoso.com --days 3'],
+    examples: ['tenantctl exchange calendar events jane@contoso.com --days 3'],
     args: [
       USER_ARG,
       { name: 'days', type: 'number', default: 7, description: 'Days ahead to include, from now.' },

@@ -398,10 +398,10 @@ export const commands: AnyCommand[] = [
       'readable conditions/actions plus derived flags: forwards, forwardsExternally (target domain not a verified ' +
       'tenant domain), deletes, movesToFolder, marksRead, and suspicious with a reason (external forwarding, or ' +
       'delete/move-to-RSS/Archive combined with mark-as-read or payment keywords: classic business email ' +
-      'compromise). Suspicious rule on an account: check `m365 entra users signins <user>`, then ' +
-      '`m365 exchange rules delete`. Only Outlook inbox rules are visible; mailbox-level forwarding is not (see ' +
-      `\`m365 exchange forwarding\`). ${MAILBOX_ACCESS_NOTE}`,
-    examples: ['m365 exchange rules list jane@contoso.com'],
+      'compromise). Suspicious rule on an account: check `tenantctl entra users signins <user>`, then ' +
+      '`tenantctl exchange rules delete`. Only Outlook inbox rules are visible; mailbox-level forwarding is not (see ' +
+      `\`tenantctl exchange forwarding\`). ${MAILBOX_ACCESS_NOTE}`,
+    examples: ['tenantctl exchange rules list jane@contoso.com'],
     args: [USER_ARG],
     risk: 'read',
     permissions: RULE_READ,
@@ -422,8 +422,8 @@ export const commands: AnyCommand[] = [
       'Incident response: removes the rule permanently. Previews the rule first. Consider `rules disable` if you ' +
       `want to keep it for investigation. ${MAILBOX_ACCESS_NOTE}`,
     examples: [
-      'm365 exchange rules delete jane@contoso.com "."',
-      'm365 exchange rules delete jane@contoso.com AQAAAJ5...',
+      'tenantctl exchange rules delete jane@contoso.com "."',
+      'tenantctl exchange rules delete jane@contoso.com AQAAAJ5...',
     ],
     args: [USER_ARG, RULE_ARG],
     risk: 'destructive',
@@ -451,8 +451,8 @@ export const commands: AnyCommand[] = [
     summary: 'Turn off an inbox rule without deleting it',
     description:
       'Stops a rule from running while keeping it for investigation; re-enable it in Outlook or with ' +
-      `\`m365 graph patch\`. ${MAILBOX_ACCESS_NOTE}`,
-    examples: ['m365 exchange rules disable jane@contoso.com "Move invoices"'],
+      `\`tenantctl graph patch\`. ${MAILBOX_ACCESS_NOTE}`,
+    examples: ['tenantctl exchange rules disable jane@contoso.com "Move invoices"'],
     args: [USER_ARG, RULE_ARG],
     risk: 'write',
     permissions: {
@@ -484,11 +484,11 @@ export const commands: AnyCommand[] = [
       'batched 20 mailboxes per Graph call, and returns only mailboxes whose rules forward mail or look suspicious. `errors` ' +
       'lists mailboxes that could not be read (no Exchange mailbox, no access). `usersTruncated: true` means more ' +
       'users exist than --max-users. Needs app-only auth to read other mailboxes. Follow up with ' +
-      '`m365 exchange rules list <user>`.',
+      '`tenantctl exchange rules list <user>`.',
     examples: [
-      'm365 exchange rules audit',
-      'm365 exchange rules audit --group "Finance Team"',
-      'm365 exchange rules audit --users jane@contoso.com,bob@contoso.com',
+      'tenantctl exchange rules audit',
+      'tenantctl exchange rules audit --group "Finance Team"',
+      'tenantctl exchange rules audit --users jane@contoso.com,bob@contoso.com',
     ],
     args: [
       { name: 'users', type: 'string[]', description: 'Comma-separated users to scan.' },
@@ -546,8 +546,8 @@ export const commands: AnyCommand[] = [
       'through the Exchange Online PowerShell bridge. forwardsExternally covers both (null when tenant domains are ' +
       'unreadable). When the bridge is unavailable (no pwsh, not signed in to Exchange, no Exchange role) ' +
       '`mailboxForwarding` is `{ error, hint }` and the inbox-rule result still stands. Change mailbox forwarding with ' +
-      `\`m365 exchange forwarding set|clear\`. ${MAILBOX_ACCESS_NOTE}`,
-    examples: ['m365 exchange forwarding jane@contoso.com'],
+      `\`tenantctl exchange forwarding set|clear\`. ${MAILBOX_ACCESS_NOTE}`,
+    examples: ['tenantctl exchange forwarding jane@contoso.com'],
     args: [USER_ARG],
     risk: 'read',
     permissions: {

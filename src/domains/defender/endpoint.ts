@@ -130,7 +130,7 @@ export async function resolveMachine(ctx: Context, ref: string): Promise<Machine
     const { items } = await find(`aadDeviceId eq ${odata(value)}`);
     if (!items.length) {
       throw new CliError('NOT_FOUND', `No Defender machine with Entra device id ${value}`, {
-        hint: 'The device may not be onboarded to Defender for Endpoint. Search by name with `m365 defender machines list --search`.',
+        hint: 'The device may not be onboarded to Defender for Endpoint. Search by name with `tenantctl defender machines list --search`.',
       });
     }
     return pickOne(items, value, 'machine', (m) => [m.aadDeviceId], describeMachine);
@@ -234,7 +234,7 @@ function machineAction(spec: ActionSpec): AnyCommand {
           created: action?.creationDateTimeUtc ?? undefined,
         }),
         machine: { id: machine.id, computerDnsName: machine.computerDnsName ?? null },
-        next: `m365 defender machines actions --machine ${machineName(machine)}`,
+        next: `tenantctl defender machines actions --machine ${machineName(machine)}`,
       };
     },
   });
@@ -251,7 +251,7 @@ const actionCommands: AnyCommand[] = [
       'to Defender for Endpoint; --selective (Windows only) still lets Outlook, Teams and Skype communicate. ' +
       'Machines behind a full-tunnel VPN can lose contact with Defender once isolated. Undo with `machines ' +
       'release`. Supported: Windows 10 1703+/11 (selective 1709+), Windows Server, Linux.',
-    examples: ['m365 defender machines isolate LAPTOP-7 --comment "Ransomware alert 1234"'],
+    examples: ['tenantctl defender machines isolate LAPTOP-7 --comment "Ransomware alert 1234"'],
     risk: 'destructive',
     endpoint: 'isolate',
     permission: 'Machine.Isolate',
@@ -272,7 +272,7 @@ const actionCommands: AnyCommand[] = [
     name: 'release',
     summary: 'Release a machine from network isolation',
     description: 'Undoes `machines isolate`. The machine reconnects once it receives the request.',
-    examples: ['m365 defender machines release LAPTOP-7 --comment "Remediated, cleared by SOC"'],
+    examples: ['tenantctl defender machines release LAPTOP-7 --comment "Remediated, cleared by SOC"'],
     risk: 'write',
     endpoint: 'unisolate',
     permission: 'Machine.Isolate',
@@ -285,7 +285,7 @@ const actionCommands: AnyCommand[] = [
     description:
       'Quick scan by default; --full-scan scans every file and can take hours. Works with Defender Antivirus in ' +
       'passive mode too. Supported: Windows 10 1709+/11, Windows Server, Linux, macOS.',
-    examples: ['m365 defender machines scan LAPTOP-7 --full-scan --comment "Alert 1234 follow-up"'],
+    examples: ['tenantctl defender machines scan LAPTOP-7 --full-scan --comment "Alert 1234 follow-up"'],
     risk: 'write',
     endpoint: 'runAntiVirusScan',
     permission: 'Machine.Scan',
@@ -300,7 +300,7 @@ const actionCommands: AnyCommand[] = [
     description:
       'Use for forensics. When the action status is Succeeded, get a download link with `machines package-url ' +
       '<actionId>`.',
-    examples: ['m365 defender machines collect-package LAPTOP-7 --comment "Incident 42 forensics"'],
+    examples: ['tenantctl defender machines collect-package LAPTOP-7 --comment "Incident 42 forensics"'],
     risk: 'write',
     endpoint: 'collectInvestigationPackage',
     permission: 'Machine.CollectForensics',
@@ -313,7 +313,7 @@ const actionCommands: AnyCommand[] = [
     description:
       'Containment for an active threat: only files signed by Microsoft can run until `machines unrestrict`. ' +
       'Needs Microsoft Defender Antivirus. Supported: Windows 10 1709+/11.',
-    examples: ['m365 defender machines restrict LAPTOP-7 --comment "Unknown binary spreading"'],
+    examples: ['tenantctl defender machines restrict LAPTOP-7 --comment "Unknown binary spreading"'],
     risk: 'destructive',
     endpoint: 'restrictCodeExecution',
     permission: 'Machine.RestrictExecution',
@@ -325,7 +325,7 @@ const actionCommands: AnyCommand[] = [
     name: 'unrestrict',
     summary: 'Remove the app execution restriction from a machine',
     description: 'Undoes `machines restrict`.',
-    examples: ['m365 defender machines unrestrict LAPTOP-7 --comment "Threat removed"'],
+    examples: ['tenantctl defender machines unrestrict LAPTOP-7 --comment "Threat removed"'],
     risk: 'write',
     endpoint: 'unrestrictCodeExecution',
     permission: 'Machine.RestrictExecution',
@@ -339,9 +339,9 @@ const actionCommands: AnyCommand[] = [
     description:
       'Kills processes of the file and moves it to quarantine. Refused by Defender for files signed by Microsoft ' +
       'or trusted publishers. Needs Defender Antivirus (passive mode is enough). Supported: Windows 10 1703+/11. ' +
-      'Find the SHA-1 in alert evidence or `m365 defender hunt`.',
+      'Find the SHA-1 in alert evidence or `tenantctl defender hunt`.',
     examples: [
-      'm365 defender machines stop-quarantine-file LAPTOP-7 --sha1 a0c659857ccbe457fdaf5fe21d54efdcbf6f6508 --comment "Malware from alert 99"',
+      'tenantctl defender machines stop-quarantine-file LAPTOP-7 --sha1 a0c659857ccbe457fdaf5fe21d54efdcbf6f6508 --comment "Malware from alert 99"',
     ],
     risk: 'destructive',
     endpoint: 'StopAndQuarantineFile',
@@ -378,9 +378,9 @@ export const commands: AnyCommand[] = [
       'osPlatform value (Windows11, Windows10, WindowsServer2022, Linux, macOS, iOS, Android...); --stale-days ' +
       `lists machines not seen for N days. ${LICENSE}`,
     examples: [
-      'm365 defender machines list --risk high',
-      'm365 defender machines list --health inactive --stale-days 30 --all',
-      'm365 defender machines list --search laptop-7',
+      'tenantctl defender machines list --risk high',
+      'tenantctl defender machines list --health inactive --stale-days 30 --all',
+      'tenantctl defender machines list --search laptop-7',
     ],
     args: [
       { name: 'search', type: 'string', description: 'Computer name prefix.' },
@@ -419,8 +419,8 @@ export const commands: AnyCommand[] = [
       '(needs Machine.ReadWrite.All). A section the token lacks degrades to { error }. ' +
       `Next: \`defender alerts for-device <name>\` or a response action. ${LICENSE}`,
     examples: [
-      'm365 defender machines get LAPTOP-7',
-      'm365 defender machines get 7f3a1d8e-0000-4c1b-9a1e-1234567890ab',
+      'tenantctl defender machines get LAPTOP-7',
+      'tenantctl defender machines get 7f3a1d8e-0000-4c1b-9a1e-1234567890ab',
     ],
     args: [MACHINE_ARG],
     risk: 'read',
@@ -453,7 +453,7 @@ export const commands: AnyCommand[] = [
       'Pass the machine action id returned by `machines collect-package`. The link is short-lived: download it ' +
       'right away. Answers NOT_FOUND while the collection is still running; check with `machines actions`. ' +
       `Defender limits this call to 2 per minute. ${LICENSE}`,
-    examples: ['m365 defender machines package-url 69dc3630-1ccc-4342-acf3-35286eec741d'],
+    examples: ['tenantctl defender machines package-url 69dc3630-1ccc-4342-acf3-35286eec741d'],
     args: [{ name: 'actionId', type: 'string', required: true, positional: true, description: 'Machine action id.' }],
     risk: 'read',
     permissions: { defender: ['Machine.ReadWrite.All', 'Machine.CollectForensics'], roles: RESPONSE_ROLES },
@@ -475,7 +475,10 @@ export const commands: AnyCommand[] = [
       'Use to follow up on an action id returned by a `machines` response command, or to see what was done to ' +
       'a machine. status is Pending, InProgress, Succeeded, Failed, TimeOut or Cancelled. ' +
       `Needs Machine.ReadWrite.All per the MDE docs. ${LICENSE}`,
-    examples: ['m365 defender machines actions --machine LAPTOP-7', 'm365 defender machines actions --status Pending'],
+    examples: [
+      'tenantctl defender machines actions --machine LAPTOP-7',
+      'tenantctl defender machines actions --status Pending',
+    ],
     args: [
       { name: 'machine', type: 'string', description: 'Only actions on this machine (name or id).' },
       { name: 'status', type: 'string', choices: ACTION_STATUSES, description: 'Only actions in this status.' },

@@ -131,7 +131,7 @@ export const commands: AnyCommand[] = [
     name: 'ediscovery list',
     summary: 'List eDiscovery (Premium) cases with status',
     description: `Cases the caller can see. Next: \`ediscovery custodians <case>\` for who is on hold. ${APP_ONLY_NOTE}`,
-    examples: ['m365 purview ediscovery list'],
+    examples: ['tenantctl purview ediscovery list'],
     args: [...LIST_ARGS],
     risk: 'read',
     permissions: READ,
@@ -148,7 +148,7 @@ export const commands: AnyCommand[] = [
     name: 'ediscovery create',
     summary: 'Create an eDiscovery (Premium) case',
     description: `Creates an empty case; add people with \`ediscovery hold <case> <user...>\`. ${APP_ONLY_NOTE}`,
-    examples: ['m365 purview ediscovery create --name "HR-2026-014 Bob Smith" --description "Departure review"'],
+    examples: ['tenantctl purview ediscovery create --name "HR-2026-014 Bob Smith" --description "Departure review"'],
     args: [
       { name: 'name', type: 'string', required: true, description: 'Case name (unique in the tenant).' },
       { name: 'description', type: 'string', description: 'Case description.' },
@@ -178,7 +178,7 @@ export const commands: AnyCommand[] = [
     description:
       'holdStatus: notApplied, applying, applied, removing, partial (some sources failed). status released = ' +
       `removed from the case. ${APP_ONLY_NOTE}`,
-    examples: ['m365 purview ediscovery custodians "HR-2026-014"'],
+    examples: ['tenantctl purview ediscovery custodians "HR-2026-014"'],
     args: [{ name: 'case', type: 'string', required: true, positional: true, description: 'Case name or id.' }],
     risk: 'read',
     permissions: READ,
@@ -197,7 +197,7 @@ export const commands: AnyCommand[] = [
       'sources, then applies the hold. Held content cannot be permanently deleted by the user or by retention ' +
       'until the hold is released, and it counts against their storage. Applying takes minutes to hours: check ' +
       `\`ediscovery custodians <case>\` until holdStatus is applied. ${APP_ONLY_NOTE}`,
-    examples: ['m365 purview ediscovery hold "HR-2026-014" bob@contoso.com jane@contoso.com'],
+    examples: ['tenantctl purview ediscovery hold "HR-2026-014" bob@contoso.com jane@contoso.com'],
     args: [
       { name: 'case', type: 'string', required: true, positional: true, description: 'Case name or id.' },
       {
@@ -248,7 +248,7 @@ export const commands: AnyCommand[] = [
         case: plan.kase.displayName,
         holdStatus: 'applying',
         people: held,
-        next: `m365 purview ediscovery custodians ${plan.kase.id}`,
+        next: `tenantctl purview ediscovery custodians ${plan.kase.id}`,
       };
     },
   }),
@@ -260,7 +260,7 @@ export const commands: AnyCommand[] = [
       'Calls removeHold for the custodian; they stay in the case (status active) so their data can still be ' +
       'searched, but held content becomes deletable again (retention policies and user deletes apply). Other ' +
       `cases or retention holds on the same person are unaffected. ${APP_ONLY_NOTE}`,
-    examples: ['m365 purview ediscovery release "HR-2026-014" bob@contoso.com'],
+    examples: ['tenantctl purview ediscovery release "HR-2026-014" bob@contoso.com'],
     args: [
       { name: 'case', type: 'string', required: true, positional: true, description: 'Case name or id.' },
       {
@@ -282,7 +282,7 @@ export const commands: AnyCommand[] = [
       const { user, custodian } = plan.targets[0] as HoldPlan['targets'][number];
       if (!custodian) {
         throw new CliError('NOT_FOUND', `${user.userPrincipalName} is not a custodian in "${plan.kase.displayName}"`, {
-          hint: `List custodians with \`m365 purview ediscovery custodians ${plan.kase.id}\`.`,
+          hint: `List custodians with \`tenantctl purview ediscovery custodians ${plan.kase.id}\`.`,
         });
       }
       return {
@@ -302,7 +302,7 @@ export const commands: AnyCommand[] = [
         user: user.userPrincipalName,
         custodianId: custodian.id,
         holdStatus: 'removing',
-        next: `m365 purview ediscovery custodians ${plan.kase.id}`,
+        next: `tenantctl purview ediscovery custodians ${plan.kase.id}`,
       };
     },
   }),

@@ -76,7 +76,7 @@ export const commands: AnyCommand[] = [
       'With --search, matches site titles/URLs (/sites?search=). Without it, app-only profiles list every site ' +
       'in the tenant (/sites/getAllSites, application permission only); delegated sign-ins must pass --search. ' +
       'OneDrive personal sites show isPersonalSite: true. Next: `sharepoint sites get <webUrl>`.',
-    examples: ['m365 sharepoint sites list --search finance', 'm365 sharepoint sites list --all'],
+    examples: ['tenantctl sharepoint sites list --search finance', 'tenantctl sharepoint sites list --all'],
     args: [
       { name: 'search', type: 'string', description: 'Keyword matched against site name/title/URL.' },
       ...LIST_ARGS,
@@ -108,7 +108,7 @@ export const commands: AnyCommand[] = [
       'document library quota (state normal/nearing <10% left/critical <1% left/exceeded). groupConnected is ' +
       "derived from the default library being owned by an M365 group; owners are that group's owners. Classic " +
       'site collection admins are not exposed by Graph. Next: `sharepoint sites permissions`, `sites drives`.',
-    examples: ['m365 sharepoint sites get https://contoso.sharepoint.com/sites/finance'],
+    examples: ['tenantctl sharepoint sites get https://contoso.sharepoint.com/sites/finance'],
     args: [SITE_ARG],
     risk: 'read',
     permissions: {
@@ -167,7 +167,7 @@ export const commands: AnyCommand[] = [
     description:
       'Each library (drive) with owner and quota. Libraries of one site share the site storage quota, so ' +
       'percentUsed is the same site-wide figure. Use a library id with `files` commands as driveId:itemId.',
-    examples: ['m365 sharepoint sites drives https://contoso.sharepoint.com/sites/finance'],
+    examples: ['tenantctl sharepoint sites drives https://contoso.sharepoint.com/sites/finance'],
     args: [SITE_ARG, ...LIST_ARGS],
     risk: 'read',
     permissions: { delegated: ['Sites.Read.All'], application: ['Sites.Read.All'] },
@@ -192,7 +192,7 @@ export const commands: AnyCommand[] = [
       'grants are not exposed by Graph v1.0; use SharePoint Online Management Shell or PnP PowerShell. To see ' +
       'who can open a particular file use `sharepoint files permissions`. Reading app grants needs ' +
       'Sites.FullControl.All.',
-    examples: ['m365 sharepoint sites permissions https://contoso.sharepoint.com/sites/finance'],
+    examples: ['tenantctl sharepoint sites permissions https://contoso.sharepoint.com/sites/finance'],
     args: [SITE_ARG],
     risk: 'read',
     permissions: {

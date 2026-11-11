@@ -47,7 +47,7 @@ describe('sign-in analysis', () => {
     const findings = signinFindings(analysis, UPN);
     expect(findings.find((f) => f.issue.includes('53003'))).toMatchObject({
       severity: 'high',
-      next: `m365 troubleshoot signin ${UPN}`,
+      next: `tenantctl troubleshoot signin ${UPN}`,
     });
     expect(findings.find((f) => f.issue.includes('50126'))).toMatchObject({ severity: 'low' });
     expect(findings.find((f) => f.issue.includes('50126'))?.issue).toContain('succeeded since');
@@ -61,13 +61,13 @@ describe('sign-in analysis', () => {
     );
     const findings = signinFindings(analysis, UPN);
     expect(findings).toHaveLength(1);
-    expect(findings[0]?.next).toBe('m365 troubleshoot device "LAPTOP-7"');
+    expect(findings[0]?.next).toBe('tenantctl troubleshoot device "LAPTOP-7"');
   });
 
   test('wrong passwords from many IPs are flagged as possible password spray', () => {
     const attempts = Array.from({ length: 12 }, (_, i) => signin(i + 1, 50126, { ipAddress: `198.51.100.${i % 4}` }));
     const findings = signinFindings(analyzeSignins([...attempts, signin(20, 0)], 7, false), UPN);
-    expect(findings[0]).toMatchObject({ severity: 'high', next: `m365 entra risk-detections --user ${UPN}` });
+    expect(findings[0]).toMatchObject({ severity: 'high', next: `tenantctl entra risk-detections --user ${UPN}` });
     expect(findings[0]?.detail).toContain('password spray');
   });
 
@@ -157,19 +157,19 @@ describe('troubleshoot user', () => {
       expect.objectContaining({
         severity: 'high',
         issue: 'Account is disabled',
-        next: `m365 entra users enable ${UPN}`,
+        next: `tenantctl entra users enable ${UPN}`,
       }),
     );
     expect(result.findings).toContainEqual(
       expect.objectContaining({ severity: 'high', issue: 'License ENTERPRISEPACK failed to assign: CountViolation' }),
     );
     expect(result.findings).toContainEqual(
-      expect.objectContaining({ area: 'mailbox', severity: 'high', next: `m365 exchange rules list ${UPN}` }),
+      expect.objectContaining({ area: 'mailbox', severity: 'high', next: `tenantctl exchange rules list ${UPN}` }),
     );
     expect(result.findings.find((f) => f.area === 'sign-in')?.detail).toContain('Blocked by: Block unmanaged');
     expect(result.findings).toContainEqual(expect.objectContaining({ area: 'mfa', severity: 'medium' }));
     expect(result.findings).toContainEqual(
-      expect.objectContaining({ area: 'devices', next: 'm365 troubleshoot device "LAPTOP-7"' }),
+      expect.objectContaining({ area: 'devices', next: 'tenantctl troubleshoot device "LAPTOP-7"' }),
     );
     expect(result.verdict).toStartWith(
       `${result.findings.filter((f) => f.severity === 'high' || f.severity === 'medium').length} problems for ${UPN}: Account is disabled`,
@@ -207,7 +207,7 @@ describe('troubleshoot user', () => {
       expect.objectContaining({
         severity: 'high',
         issue: 'Mailbox forwards all mail to drop@evil.example (outside the organization)',
-        next: `m365 exchange forwarding ${UPN}`,
+        next: `tenantctl exchange forwarding ${UPN}`,
       }),
     );
   });
@@ -268,13 +268,16 @@ describe('troubleshoot device', () => {
   test('explains non-compliance and every device-side blocker', async () => {
     const result = await report('troubleshoot device', [DEVICE_ID], routes);
     const byArea = Object.fromEntries(result.findings.map((f) => [f.area, f]));
-    expect(byArea.compliance).toMatchObject({ severity: 'high', next: 'm365 intune devices compliance "LAPTOP-7"' });
+    expect(byArea.compliance).toMatchObject({
+      severity: 'high',
+      next: 'tenantctl intune devices compliance "LAPTOP-7"',
+    });
     expect(byArea.compliance?.detail).toContain('"Windows baseline" fails BitLocker (current value false)');
-    expect(byArea.sync).toMatchObject({ severity: 'medium', next: 'm365 intune devices sync "LAPTOP-7"' });
+    expect(byArea.sync).toMatchObject({ severity: 'medium', next: 'tenantctl intune devices sync "LAPTOP-7"' });
     expect(byArea.entra).toMatchObject({
       severity: 'high',
       issue: 'Device is disabled in Entra ID',
-      next: 'm365 entra devices enable obj',
+      next: 'tenantctl entra devices enable obj',
     });
     expect(byArea.configuration?.detail).toBe('Wi-Fi (error)');
     expect(byArea.actions).toMatchObject({ severity: 'high' });
@@ -384,7 +387,7 @@ describe('troubleshoot mail', () => {
       expect.objectContaining({
         area: 'inbox rules',
         issue: 'Inbox rule "Vendors" deletes matching mail',
-        next: `m365 exchange rules list ${UPN}`,
+        next: `tenantctl exchange rules list ${UPN}`,
       }),
     );
   });

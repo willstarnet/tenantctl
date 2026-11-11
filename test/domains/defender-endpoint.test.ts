@@ -128,7 +128,7 @@ describe('defender machines', () => {
       kind: 'result',
       result: {
         machineAction: { id: 'act-1', status: 'Pending' },
-        next: 'm365 defender machines actions --machine laptop-7.contoso.com',
+        next: 'tenantctl defender machines actions --machine laptop-7.contoso.com',
       },
     });
   });

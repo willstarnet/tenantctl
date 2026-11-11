@@ -82,7 +82,7 @@ export function domainCommands(domain: string): AnyCommand[] {
 export const GLOBAL_FLAGS = ['output', 'fields', 'full', 'profile', 'confirm', 'dryRun', 'debug', 'help', 'version'];
 
 export function usage(command: AnyCommand): string {
-  const parts = [`m365 ${commandId(command)}`];
+  const parts = [`tenantctl ${commandId(command)}`];
   for (const arg of command.args.filter((a) => a.positional)) {
     parts.push(arg.required ? `<${kebab(arg.name)}>` : `[${kebab(arg.name)}]`);
   }

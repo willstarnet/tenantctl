@@ -1,25 +1,23 @@
-# M365Management - contributor guide
+# tenantctl - contributor guide
 
-`m365` is a Bun + TypeScript CLI that lets an AI agent (or a person) administer a Microsoft 365 tenant through
+`tenantctl` is a Bun + TypeScript CLI that lets an AI agent (or a person) administer a Microsoft 365 tenant through
 Microsoft Graph: Entra ID, Intune, Defender, Exchange Online, SharePoint/OneDrive, Teams and service health.
-
-**Starting a new session? Read [docs/HANDOFF.md](docs/HANDOFF.md) first:** state, verification, open items, traps.
 
 The point of the project is to make a conversation like "Jane can't sign in" or "wipe the laptop Bob lost" turn
 into one or two obvious commands with compact, explainable output. Every design choice serves that.
 
 ## Commands
 
-| Task            | Command                                                                          |
-| --------------- | -------------------------------------------------------------------------------- |
-| Install deps    | `bun install`                                                                    |
-| Run from source | `bun src/cli.ts <area> <command> ...`                                            |
-| Typecheck       | `bun run typecheck`                                                              |
-| Tests           | `bun test` (one file: `bun test test/domains/intune.test.ts`)                    |
-| Regenerate docs | `bun run docs` (writes `docs/COMMANDS.md`, `docs/PERMISSIONS.md`)                |
-| Build binaries  | `bun run build` (all platforms into `dist/`)                                     |
-| Install locally | `bun run install:local` (builds for this machine, copies to `~/.local/bin/m365`) |
-| Format          | `bun run format`                                                                 |
+| Task            | Command                                                                               |
+| --------------- | ------------------------------------------------------------------------------------- |
+| Install deps    | `bun install`                                                                         |
+| Run from source | `bun src/cli.ts <area> <command> ...`                                                 |
+| Typecheck       | `bun run typecheck`                                                                   |
+| Tests           | `bun test` (one file: `bun test test/domains/intune.test.ts`)                         |
+| Regenerate docs | `bun run docs` (writes `docs/COMMANDS.md`, `docs/PERMISSIONS.md`)                     |
+| Build binaries  | `bun run build` (all platforms into `dist/`)                                          |
+| Install locally | `bun run install:local` (builds for this machine, copies to `~/.local/bin/tenantctl`) |
+| Format          | `bun run format`                                                                      |
 
 ## Layout
 
@@ -32,11 +30,12 @@ src/core/graph.ts          GraphClient: retries, paging, errors, CSV reports, ba
 src/core/exo.ts            Exchange Online PowerShell bridge: exoRun(ctx.exo, steps) / ctx.exo.run (fixed script,
                            params as JSON env, -AccessToken connect)
 src/core/resolve.ts        resolveUser / resolveGroup / pickOne (names -> ids, AMBIGUOUS errors)
-src/core/execute.ts        write gating, confirm tokens, human approval, audit, permission hints; builds Context
+src/core/execute.ts        write gating, human approval (one run; confirm tokens in token mode), audit, permission
+                           hints; builds Context
 src/core/approval.ts       confirm modes (token/tty/dialog/auto), env-can-only-strengthen, OS dialog + /dev/tty
 src/core/auth.ts           MSAL per resource (graph, exchange, defender): device code, client credentials, static
 src/core/secretStore.ts    AES-256-GCM token cache; key in Keychain / libsecret / DPAPI / file fallback
-src/core/config.ts         profiles (~/.config/m365/config.json), env overrides
+src/core/config.ts         profiles (~/.config/tenantctl/config.json), env overrides
 src/core/csvInput.ts       readCsvRows() for bulk commands (500-row cap, tolerant column names)
 src/core/listing.ts        LIST_ARGS (--top/--all) and listLimit()
 src/core/util.ts           settle() + isSettledError(), daysAgo(), daysSince(), compact(), isGuid()
@@ -45,7 +44,7 @@ src/domains/<area>/        commands for one area; index.ts exports `commands` an
 src/domains/troubleshoot/  composite diagnostics; findings.ts (Finding, verdict, permissionsOf), signins.ts
 test/helpers/graphMock.ts  mockContext(), runCommand(), fakeExo(), page(), graphError()
 scripts/smoke-live.ts      read-only run of every read command against a real tenant (`bun run smoke:live`)
-skills/m365/SKILL.md       how an AI agent should use the CLI
+skills/tenantctl/SKILL.md       how an AI agent should use the CLI
 docs/domains/<area>.md     task -> command mapping, licensing needs, Graph gaps
 ```
 
@@ -54,10 +53,10 @@ docs/domains/<area>.md     task -> command mapping, licensing needs, Graph gaps
 ```ts
 export const devicesSync = defineCommand({
   domain: 'intune',
-  name: 'devices sync', // `m365 intune devices sync`
+  name: 'devices sync', // `tenantctl intune devices sync`
   summary: 'Ask a device to check in with Intune now',
   description: 'When to use it and how to read the result, for agents.',
-  examples: ['m365 intune devices sync DESKTOP-123'],
+  examples: ['tenantctl intune devices sync DESKTOP-123'],
   args: [
     { name: 'device', type: 'string', required: true, positional: true, description: 'Device name, serial or id.' },
   ],
@@ -90,11 +89,11 @@ Rules:
    member, enable). `destructive` is disruptive, security-sensitive or irreversible (wipe, retire, delete,
    disable, password reset, revoke sessions, remove access, grant mailbox/file access, reboot) and must implement
    `preview`, which resolves the target, shows its current state, and carries a plain-language `action` string:
-   the human approval dialog shows it. The executor handles gating, confirm tokens, human approval and audit;
+   the human approval dialog shows it. The executor handles gating, human approval, confirm tokens and audit;
    commands never check `allowWrites` themselves.
 5. **Permissions are least privilege** and taken from the "Permissions" table of the endpoint's Microsoft Graph
    doc page, for both delegated and application. Add `roles` when the delegated caller also needs an admin role.
-   Endpoints that do not support one type leave it out. These lists generate `m365 permissions` and the login
+   Endpoints that do not support one type leave it out. These lists generate `tenantctl permissions` and the login
    scope set, so they must be accurate.
 6. **Verify every endpoint against current docs** (`https://learn.microsoft.com/graph/api/<page>` or the raw
    Markdown in `microsoftgraph/microsoft-graph-docs-contrib/api-reference/{v1.0,beta}/api/`). Prefer v1.0; use

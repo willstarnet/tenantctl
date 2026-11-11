@@ -97,14 +97,14 @@ function permissionHint(command: AnyCommand, profile: Profile): string {
     parts.push(`The app registration needs application permission ${application.join(' and ')} with admin consent`);
   } else if (delegated?.length) {
     // Re-running the default login re-requests the full scope set; `--scopes` would replace it.
-    const login = command.risk === 'read' ? 'm365 auth login' : 'm365 auth login --include-writes';
+    const login = command.risk === 'read' ? 'tenantctl auth login' : 'tenantctl auth login --include-writes';
     parts.push(`Needs delegated scope ${delegated.join(' and ')}: run \`${login}\` (an admin may need to consent)`);
   }
   if (command.permissions.exchange) {
     parts.push(
       profile.authMode === 'app'
         ? 'For the Exchange part: Office 365 Exchange Online Exchange.ManageAsApp and an Exchange role on the app'
-        : 'For the Exchange part: an Exchange admin role, signed in with `m365 auth login --service exchange`',
+        : 'For the Exchange part: an Exchange admin role, signed in with `tenantctl auth login --service exchange`',
     );
   }
   if (command.permissions.defender?.length) {
@@ -130,9 +130,11 @@ function enrich(error: unknown, command: AnyCommand, profile: Profile): unknown 
 /**
  * Parse, gate and run one command.
  *
- * Reads run directly. Writes need writes enabled for the profile. Destructive commands additionally run in two
- * steps: without `--confirm` they return a preview and a token bound to the exact arguments; with a valid token
- * they execute. `--dry-run` previews any write without needing writes enabled.
+ * Reads run directly. Writes need writes enabled for the profile. Destructive commands also need a person: in
+ * `dialog` and `tty` confirm modes the person approves the current preview on a channel the agent cannot answer,
+ * in one run. In `token` mode (no person available) they run in two steps: without `--confirm` they return a
+ * preview and a token bound to the exact arguments; with a valid token they execute. `--dry-run` previews any
+ * write without needing writes enabled.
  */
 export async function execute(
   command: AnyCommand,
@@ -157,8 +159,8 @@ export async function execute(
     if (!writesEnabled(env.profile)) {
       throw new CliError('WRITES_DISABLED', `"${commandId}" changes the tenant and writes are disabled`, {
         hint:
-          'Writes are off by default. Ask the user before enabling them: export M365_ALLOW_WRITES=1 for this ' +
-          'session, or `m365 config set allowWrites true` for the profile. Use --dry-run to preview meanwhile.',
+          'Writes are off by default. Ask the user before enabling them: export TENANTCTL_ALLOW_WRITES=1 for this ' +
+          'session, or `tenantctl config set allowWrites true` for the profile. Use --dry-run to preview meanwhile.',
       });
     }
 
@@ -172,18 +174,20 @@ export async function execute(
     };
 
     if (command.risk === 'destructive') {
-      const binding: ConfirmBinding = { command: commandId, profile: env.profileName, tenant: audit.tenant, args };
-      if (!options.confirm) {
-        const shown = await preview();
-        const { token, expiresAt } = issueConfirmToken(binding);
-        appendAudit({ ...audit, outcome: 'confirmation_issued' });
-        return { kind: 'confirm', preview: shown, token, expiresAt };
+      if (effectiveConfirmMode(env.profile) === 'token') {
+        const binding: ConfirmBinding = { command: commandId, profile: env.profileName, tenant: audit.tenant, args };
+        if (!options.confirm) {
+          const shown = await preview();
+          const { token, expiresAt } = issueConfirmToken(binding);
+          appendAudit({ ...audit, outcome: 'confirmation_issued' });
+          return { kind: 'confirm', preview: shown, token, expiresAt };
+        }
+        verifyConfirmToken(options.confirm, binding);
       }
-      verifyConfirmToken(options.confirm, binding);
-      // Re-preview so the person approves the target's state now, not as it was when the token was issued.
       const label = `${env.profileName}${audit.tenant ? ` (${audit.tenant})` : ''}`;
+      const summary = approvalSummary(commandId, label, await preview());
       try {
-        await ctx.requireApproval(approvalSummary(commandId, label, await preview()));
+        await ctx.requireApproval(summary);
       } catch (error) {
         if (error instanceof CliError && error.code === 'DENIED') appendAudit({ ...audit, outcome: 'denied' });
         throw error;

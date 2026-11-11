@@ -114,7 +114,7 @@ function deviceAction(spec: ActionSpec): AnyCommand {
         device: deviceSummary(device),
         ...(response !== undefined ? { response } : {}),
         next: spec.action
-          ? `The device acts on this at its next check-in. Track it with \`m365 intune devices actions ${device.deviceName ?? device.id}\`.`
+          ? `The device acts on this at its next check-in. Track it with \`tenantctl intune devices actions ${device.deviceName ?? device.id}\`.`
           : undefined,
       };
     },
@@ -141,7 +141,7 @@ export const commands: AnyCommand[] = [
       'Use after changing a policy, assignment or app so the device picks it up without waiting for the next ' +
       'scheduled check-in (about every 8 hours). The device must be online; check lastSyncDateTime with ' +
       '`devices get` a few minutes later.',
-    examples: ['m365 intune devices sync DESKTOP-4F2K9'],
+    examples: ['tenantctl intune devices sync DESKTOP-4F2K9'],
     risk: 'write',
     action: 'syncDevice',
     permission: PRIVILEGED_OPS,
@@ -153,7 +153,7 @@ export const commands: AnyCommand[] = [
     description:
       'Reboots the device as soon as it receives the command, without asking the user; unsaved work is lost. ' +
       'Windows, macOS, supervised iOS/iPadOS and Android Enterprise dedicated/fully managed devices.',
-    examples: ['m365 intune devices restart DESKTOP-4F2K9'],
+    examples: ['tenantctl intune devices restart DESKTOP-4F2K9'],
     risk: 'destructive',
     action: 'rebootNow',
     permission: PRIVILEGED_OPS,
@@ -166,7 +166,7 @@ export const commands: AnyCommand[] = [
     description:
       'Locks the screen; the user unlocks with their passcode. Use for a lost or stolen mobile device before ' +
       'deciding to wipe. Not supported on Windows (use `devices restart` or disable the user instead).',
-    examples: ['m365 intune devices lock "Jane iPhone"'],
+    examples: ['tenantctl intune devices lock "Jane iPhone"'],
     risk: 'destructive',
     action: 'remoteLock',
     permission: PRIVILEGED_OPS,
@@ -180,7 +180,7 @@ export const commands: AnyCommand[] = [
       'Supported on Windows 10/11, supervised iOS/iPadOS in Lost Mode and Android Enterprise dedicated/fully ' +
       'managed devices; location services must be on. The location appears in the Intune admin center once the ' +
       'device responds; `devices actions` shows whether it completed.',
-    examples: ['m365 intune devices locate "Jane iPhone"'],
+    examples: ['tenantctl intune devices locate "Jane iPhone"'],
     risk: 'write',
     action: 'locateDevice',
     permission: WRITE_DEVICES,
@@ -194,8 +194,8 @@ export const commands: AnyCommand[] = [
       'Quick scan by default; --full scans every file and can take hours. Results show in `devices get` ' +
       '(defender.lastQuickScanDateTime / lastFullScanDateTime) after the device reports back.',
     examples: [
-      'm365 intune devices defender-scan DESKTOP-4F2K9',
-      'm365 intune devices defender-scan DESKTOP-4F2K9 --full',
+      'tenantctl intune devices defender-scan DESKTOP-4F2K9',
+      'tenantctl intune devices defender-scan DESKTOP-4F2K9 --full',
     ],
     risk: 'write',
     action: 'windowsDefenderScan',
@@ -209,7 +209,7 @@ export const commands: AnyCommand[] = [
     name: 'defender-update',
     summary: 'Update Microsoft Defender Antivirus signatures on a Windows device',
     description: 'Use when `devices get` shows defender.signatureUpdateOverdue. Windows only.',
-    examples: ['m365 intune devices defender-update DESKTOP-4F2K9'],
+    examples: ['tenantctl intune devices defender-update DESKTOP-4F2K9'],
     risk: 'write',
     action: 'windowsDefenderUpdateSignatures',
     permission: PRIVILEGED_OPS,
@@ -223,7 +223,7 @@ export const commands: AnyCommand[] = [
       'Use after a recovery key was shared with a user, or when `devices bitlocker-key` finds no key in Entra. ' +
       'The device generates a new key and escrows it to Entra on its next check-in. Requires Entra joined or ' +
       'hybrid joined Windows with key rotation enabled in the BitLocker policy. (beta API)',
-    examples: ['m365 intune devices rotate-bitlocker DESKTOP-4F2K9'],
+    examples: ['tenantctl intune devices rotate-bitlocker DESKTOP-4F2K9'],
     risk: 'write',
     action: 'rotateBitLockerKeys',
     version: 'beta',
@@ -237,7 +237,7 @@ export const commands: AnyCommand[] = [
     description:
       'Use after the LAPS password was disclosed. The device sets a new password and backs it up on its next ' +
       'check-in; read it with `devices laps --reveal`. Requires a Windows LAPS policy. (beta API)',
-    examples: ['m365 intune devices rotate-laps DESKTOP-4F2K9'],
+    examples: ['tenantctl intune devices rotate-laps DESKTOP-4F2K9'],
     risk: 'write',
     action: 'rotateLocalAdminPassword',
     version: 'beta',
@@ -252,7 +252,7 @@ export const commands: AnyCommand[] = [
       'Changes the device name on the device itself, not just the Intune record. Windows needs a restart to take ' +
       'effect; iOS/iPadOS must be supervised. Windows names: max 15 characters, letters, digits and hyphens. ' +
       '(beta API)',
-    examples: ['m365 intune devices rename DESKTOP-4F2K9 --name SALES-LT-042'],
+    examples: ['tenantctl intune devices rename DESKTOP-4F2K9 --name SALES-LT-042'],
     risk: 'write',
     action: 'setDeviceName',
     version: 'beta',
@@ -277,7 +277,7 @@ export const commands: AnyCommand[] = [
       'Asks the device to upload its Intune diagnostic bundle (event logs, registry, MDM diagnostics). Download ' +
       'it from the device\'s "Device diagnostics" page in the Intune admin center once collected. Windows 10 ' +
       '1909+ only; the response includes the request id and status. (beta API)',
-    examples: ['m365 intune devices collect-logs DESKTOP-4F2K9'],
+    examples: ['tenantctl intune devices collect-logs DESKTOP-4F2K9'],
     risk: 'write',
     action: 'createDeviceLogCollectionRequest',
     version: 'beta',
@@ -293,7 +293,7 @@ export const commands: AnyCommand[] = [
       'Use when an employee leaves with a personal (BYOD) device or a device is being repurposed. Removes ' +
       'managed apps, company data, Wi-Fi/VPN/email profiles and unenrolls the device; personal data stays. ' +
       'The Intune record is removed after the device checks in (or after 180 days if it never does).',
-    examples: ['m365 intune devices retire "Jane iPhone"'],
+    examples: ['tenantctl intune devices retire "Jane iPhone"'],
     risk: 'destructive',
     action: 'retire',
     permission: PRIVILEGED_OPS,
@@ -311,8 +311,8 @@ export const commands: AnyCommand[] = [
       'may need --macos-unlock-code (6 digits) to unlock after the wipe. Consider `devices retire` for personal ' +
       'devices.',
     examples: [
-      'm365 intune devices wipe DESKTOP-4F2K9',
-      'm365 intune devices wipe DESKTOP-4F2K9 --keep-enrollment-data',
+      'tenantctl intune devices wipe DESKTOP-4F2K9',
+      'tenantctl intune devices wipe DESKTOP-4F2K9 --keep-enrollment-data',
     ],
     risk: 'destructive',
     action: 'wipe',
@@ -350,7 +350,7 @@ export const commands: AnyCommand[] = [
       'Removes apps that were not installed with Windows (including OEM software and Win32 apps) and updates ' +
       "Windows. With --keep-user-data the user's files stay; otherwise everything except the OS is removed. " +
       'Entra joined devices stay joined. Windows only.',
-    examples: ['m365 intune devices fresh-start DESKTOP-4F2K9 --keep-user-data'],
+    examples: ['tenantctl intune devices fresh-start DESKTOP-4F2K9 --keep-user-data'],
     risk: 'destructive',
     action: 'cleanWindowsDevice',
     permission: PRIVILEGED_OPS,
@@ -368,7 +368,7 @@ export const commands: AnyCommand[] = [
       'Removes the device from Intune without touching the device; use for stale records of devices that are ' +
       'already gone. If the device is still in use, its management certificate stops working and it drops out ' +
       'of compliance. Use `devices retire` or `devices wipe` to remove data first.',
-    examples: ['m365 intune devices delete OLD-LAPTOP-01'],
+    examples: ['tenantctl intune devices delete OLD-LAPTOP-01'],
     risk: 'destructive',
     permission: WRITE_DEVICES,
     describe: (d) => `Delete the Intune record of ${name(d)} (${who(d)}). The device itself is not changed.`,
@@ -380,7 +380,7 @@ export const commands: AnyCommand[] = [
       'For a user locked out of a managed mobile device. Android Enterprise work profile / fully managed: a new ' +
       'temporary passcode is generated (shown in the Intune admin center). iOS/iPadOS: the passcode is removed. ' +
       'Not supported on Windows or macOS.',
-    examples: ['m365 intune devices reset-passcode "Jane Pixel"'],
+    examples: ['tenantctl intune devices reset-passcode "Jane Pixel"'],
     risk: 'destructive',
     action: 'resetPasscode',
     permission: PRIVILEGED_OPS,

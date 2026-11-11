@@ -403,14 +403,14 @@ async function findAuthMethod(ctx: Context, userRef: string, methodId: string) {
   const method = methods.find((m) => m.id.toLowerCase() === methodId.trim().toLowerCase());
   if (!method) {
     throw new CliError('NOT_FOUND', `${user.userPrincipalName} has no authentication method ${methodId}`, {
-      hint: `Run \`m365 entra users auth-methods ${user.userPrincipalName}\` to list method ids.`,
+      hint: `Run \`tenantctl entra users auth-methods ${user.userPrincipalName}\` to list method ids.`,
     });
   }
   const segment = AUTH_METHOD_TYPES[method['@odata.type']]?.segment;
   if (!segment) {
     throw new CliError('USAGE', `${shapeAuthMethod(method).type} methods cannot be removed`, {
       hint: method['@odata.type'].includes('password')
-        ? 'Reset the password instead: `m365 entra users reset-password`.'
+        ? 'Reset the password instead: `tenantctl entra users reset-password`.'
         : 'Remove it in the Entra admin center.',
     });
   }
@@ -518,7 +518,7 @@ async function planLicenseRemove(ctx: Context, args: { user: string; sku: string
   const states = (user.licenseAssignmentStates ?? []).filter((s) => s.skuId === sku.skuId);
   if (!states.length) {
     throw new CliError('NOT_FOUND', `${user.userPrincipalName} does not have ${sku.skuPartNumber}`, {
-      hint: `Run \`m365 entra users licenses ${user.userPrincipalName}\` to see their licenses.`,
+      hint: `Run \`tenantctl entra users licenses ${user.userPrincipalName}\` to see their licenses.`,
     });
   }
   const groups = states.flatMap((s) => (s.assignedByGroup ? [s.assignedByGroup] : []));
@@ -539,7 +539,7 @@ async function resolveDeletedUser(ctx: Context, ref: string): Promise<GraphUser 
     );
     if (!found) {
       throw new CliError('NOT_FOUND', `No deleted user with id ${value}`, {
-        hint: 'Deleted users are purged after 30 days. Run `m365 entra users deleted` to list restorable users.',
+        hint: 'Deleted users are purged after 30 days. Run `tenantctl entra users deleted` to list restorable users.',
       });
     }
     return found;
@@ -618,12 +618,12 @@ export const commands: AnyCommand[] = [
       '--search matches display name, UPN and mail. --inactive-days N returns users whose last interactive ' +
       'sign-in is older than N days and adds lastSignIn; it needs AuditLog.Read.All and Entra ID P1/P2, cannot be ' +
       'combined with other filters (Graph limitation), and omits users who have never signed in. Follow up with ' +
-      '`m365 entra users get <upn>` for one user.',
+      '`tenantctl entra users get <upn>` for one user.',
     examples: [
-      'm365 entra users list --search jane',
-      'm365 entra users list --department Sales --disabled',
-      'm365 entra users list --unlicensed --all',
-      'm365 entra users list --inactive-days 90',
+      'tenantctl entra users list --search jane',
+      'tenantctl entra users list --department Sales --disabled',
+      'tenantctl entra users list --unlicensed --all',
+      'tenantctl entra users list --inactive-days 90',
     ],
     args: [
       { name: 'search', type: 'string', description: 'Match display name, UPN or mail (word prefix).' },
@@ -682,7 +682,7 @@ export const commands: AnyCommand[] = [
       'successful sign-in and needs AuditLog.Read.All plus Entra ID P1/P2; without them signIns shows an error and ' +
       'the rest still works. Next: `users signins` for failures, `users auth-methods` for MFA, `users licenses` ' +
       'for missing apps.',
-    examples: ['m365 entra users get jane@contoso.com', 'm365 entra users get "Jane Doe"'],
+    examples: ['tenantctl entra users get jane@contoso.com', 'tenantctl entra users get "Jane Doe"'],
     args: [USER_ARG],
     risk: 'read',
     permissions: {
@@ -700,7 +700,7 @@ export const commands: AnyCommand[] = [
       'Shows every group the user is in directly or through nesting, with type (Security, Microsoft 365, ' +
       'Mail-enabled security, Distribution) and whether membership is dynamic, plus active directory (admin) roles. ' +
       'Use to explain why someone has access to a site/app or receives a policy. Eligible (PIM) roles are not shown.',
-    examples: ['m365 entra users groups jane@contoso.com --all'],
+    examples: ['tenantctl entra users groups jane@contoso.com --all'],
     args: [USER_ARG, ...LIST_ARGS],
     risk: 'read',
     permissions: {
@@ -761,7 +761,7 @@ export const commands: AnyCommand[] = [
       'explanation, disabledPlans (service plans switched off in that assignment) and plansNotReady (plans whose ' +
       'provisioning is pending or failed; delegated sign-in only). A missing usageLocation blocks assignment. ' +
       'Fix with `users license add/remove` or by changing group membership.',
-    examples: ['m365 entra users licenses jane@contoso.com'],
+    examples: ['tenantctl entra users licenses jane@contoso.com'],
     args: [USER_ARG],
     risk: 'read',
     permissions: {
@@ -847,7 +847,7 @@ export const commands: AnyCommand[] = [
       'isMfaRegistered/isMfaCapable, SSPR state, passwordless capability and the default MFA method. ' +
       'hasStrongMethod=false means only password/email: issue a TAP (`users tap`) so they can register. ' +
       'Authentication Administrators see phone numbers masked.',
-    examples: ['m365 entra users auth-methods jane@contoso.com'],
+    examples: ['tenantctl entra users auth-methods jane@contoso.com'],
     args: [USER_ARG],
     risk: 'read',
     permissions: {
@@ -870,7 +870,7 @@ export const commands: AnyCommand[] = [
       'isCompliant and isManaged (as Conditional Access sees them), last sign-in, and whether the device object is ' +
       'enabled. Use when CA blocks a device. For Intune details (compliance reasons, sync) use the intune commands. ' +
       'Delegated sign-in only (Graph has no application permission for this).',
-    examples: ['m365 entra users devices jane@contoso.com'],
+    examples: ['tenantctl entra users devices jane@contoso.com'],
     args: [USER_ARG],
     risk: 'read',
     permissions: { delegated: ['User.Read.All'] },
@@ -913,8 +913,8 @@ export const commands: AnyCommand[] = [
       'result, whether MFA was required/satisfied and sign-in risk. Interactive and non-interactive (token refresh) ' +
       'sign-ins are both included. Needs AuditLog.Read.All and Entra ID P1/P2; logs are kept 30 days (7 on free).',
     examples: [
-      'm365 entra users signins jane@contoso.com',
-      'm365 entra users signins jane@contoso.com --failures-only --days 3',
+      'tenantctl entra users signins jane@contoso.com',
+      'tenantctl entra users signins jane@contoso.com --failures-only --days 3',
     ],
     args: [
       USER_ARG,
@@ -952,8 +952,8 @@ export const commands: AnyCommand[] = [
       'The UPN domain must be a verified tenant domain. --manager needs User.ReadWrite.All; if it fails the user is ' +
       'still created and the result says so.',
     examples: [
-      'm365 entra users create --display-name "Jane Doe" --upn jane@contoso.com --usage-location US',
-      'm365 entra users create --display-name "Bob Ray" --upn bob@contoso.com --department Sales --manager jane@contoso.com',
+      'tenantctl entra users create --display-name "Jane Doe" --upn jane@contoso.com --usage-location US',
+      'tenantctl entra users create --display-name "Bob Ray" --upn bob@contoso.com --department Sales --manager jane@contoso.com',
     ],
     args: [
       { name: 'displayName', type: 'string', required: true, description: 'Full name shown in the address book.' },
@@ -1012,7 +1012,7 @@ export const commands: AnyCommand[] = [
           () => identity(manager),
           (error: unknown) => ({
             error: error instanceof Error ? error.message : String(error),
-            hint: `User created; set the manager later with \`m365 entra users update ${created.userPrincipalName} --manager ...\`.`,
+            hint: `User created; set the manager later with \`tenantctl entra users update ${created.userPrincipalName} --manager ...\`.`,
           }),
         );
       }
@@ -1021,7 +1021,7 @@ export const commands: AnyCommand[] = [
         temporaryPassword: args.password ? undefined : password,
         forceChangePasswordNextSignIn: args.forceChange,
         manager: managerResult,
-        next: `Assign a license: m365 entra users license add ${created.userPrincipalName} --sku <SKU>`,
+        next: `Assign a license: tenantctl entra users license add ${created.userPrincipalName} --sku <SKU>`,
       });
     },
   }),
@@ -1034,9 +1034,9 @@ export const commands: AnyCommand[] = [
       'Only the options you pass are changed. Synced (on-premises) users must be edited in AD for most fields. ' +
       '--usage-location is required before licenses can be assigned. Dry run (--dry-run) shows old -> new values.',
     examples: [
-      'm365 entra users update jane@contoso.com --job-title "Sales Manager" --department Sales',
-      'm365 entra users update jane@contoso.com --usage-location GB',
-      'm365 entra users update jane@contoso.com --manager bob@contoso.com',
+      'tenantctl entra users update jane@contoso.com --job-title "Sales Manager" --department Sales',
+      'tenantctl entra users update jane@contoso.com --usage-location GB',
+      'tenantctl entra users update jane@contoso.com --manager bob@contoso.com',
     ],
     args: [
       USER_ARG,
@@ -1103,7 +1103,7 @@ export const commands: AnyCommand[] = [
     description:
       'Use for offboarding or a compromised account. Existing sessions keep working until their tokens expire: ' +
       'follow with `users revoke-sessions`. Reversible with `users enable`. Synced users must be disabled in AD.',
-    examples: ['m365 entra users disable jane@contoso.com'],
+    examples: ['tenantctl entra users disable jane@contoso.com'],
     args: [USER_ARG],
     risk: 'destructive',
     permissions: accountEnabledPermissions,
@@ -1126,7 +1126,7 @@ export const commands: AnyCommand[] = [
       return {
         user: identity(user),
         accountEnabled: false,
-        next: `Sign them out everywhere now: m365 entra users revoke-sessions ${user.userPrincipalName}`,
+        next: `Sign them out everywhere now: tenantctl entra users revoke-sessions ${user.userPrincipalName}`,
       };
     },
   }),
@@ -1136,7 +1136,7 @@ export const commands: AnyCommand[] = [
     name: 'users enable',
     summary: 'Allow a disabled user to sign in again (accountEnabled = true)',
     description: 'Reverses `users disable`. Synced users must be enabled in on-premises AD.',
-    examples: ['m365 entra users enable jane@contoso.com'],
+    examples: ['tenantctl entra users enable jane@contoso.com'],
     args: [USER_ARG],
     risk: 'write',
     permissions: accountEnabledPermissions,
@@ -1166,7 +1166,7 @@ export const commands: AnyCommand[] = [
       'Administrator resets non-admins and some readers, User Administrator also other user/helpdesk admins, ' +
       'Privileged Authentication Administrator anyone. App-only use also needs an admin role assigned to the app. ' +
       'Synced users need password writeback; reset them in AD otherwise. Consider `users revoke-sessions` after.',
-    examples: ['m365 entra users reset-password jane@contoso.com'],
+    examples: ['tenantctl entra users reset-password jane@contoso.com'],
     args: [
       USER_ARG,
       { name: 'password', type: 'string', secret: true, description: 'New password; generated when omitted.' },
@@ -1216,7 +1216,7 @@ export const commands: AnyCommand[] = [
     description:
       'Use after disabling a user, a password reset for compromise, or a lost device. Apps re-prompt for sign-in; ' +
       'access tokens already issued may work for up to an hour. Does not block sign-in (use `users disable`).',
-    examples: ['m365 entra users revoke-sessions jane@contoso.com'],
+    examples: ['tenantctl entra users revoke-sessions jane@contoso.com'],
     args: [USER_ARG],
     risk: 'destructive',
     permissions: {
@@ -1247,7 +1247,7 @@ export const commands: AnyCommand[] = [
       'Moves the user to deleted items, frees their licenses and soft-deletes their mailbox/OneDrive with them. ' +
       'Restore within 30 days with `users restore <id>`; after that it is permanent. Synced users must be deleted ' +
       'in AD. For offboarding, disabling first is usually safer.',
-    examples: ['m365 entra users delete jane@contoso.com'],
+    examples: ['tenantctl entra users delete jane@contoso.com'],
     args: [USER_ARG],
     risk: 'destructive',
     permissions: {
@@ -1263,14 +1263,14 @@ export const commands: AnyCommand[] = [
         licenses: (user.assignedLicenses ?? []).length,
         action:
           `Delete ${user.userPrincipalName}. It can be restored for ${DELETED_RETENTION_DAYS} days with ` +
-          `\`m365 entra users restore ${user.id}\`.`,
+          `\`tenantctl entra users restore ${user.id}\`.`,
         warning: user.onPremisesSyncEnabled ? SYNCED_WARNING : undefined,
       });
     },
     async run(ctx, args) {
       const user = await resolveUser(ctx, args.user);
       await ctx.graph.delete(`/users/${seg(user.id)}`);
-      return { user: identity(user), deleted: true, restoreWith: `m365 entra users restore ${user.id}` };
+      return { user: identity(user), deleted: true, restoreWith: `tenantctl entra users restore ${user.id}` };
     },
   }),
 
@@ -1281,7 +1281,7 @@ export const commands: AnyCommand[] = [
     description:
       `Deleted users stay restorable for ${DELETED_RETENTION_DAYS} days; daysUntilPurge shows how long is left. ` +
       'Restore with `users restore <id>`.',
-    examples: ['m365 entra users deleted'],
+    examples: ['tenantctl entra users deleted'],
     args: [...LIST_ARGS],
     risk: 'read',
     permissions: { delegated: ['User.Read.All'], application: ['User.Read.All'] },
@@ -1315,7 +1315,10 @@ export const commands: AnyCommand[] = [
     description:
       'Accepts the id from `users deleted`, or the display name / original UPN. Licenses, group memberships and ' +
       'mailbox come back with the account. Fails if the UPN or mail has been reused meanwhile.',
-    examples: ['m365 entra users restore 6e7b768e-07e2-4810-8459-485f84f8f204', 'm365 entra users restore "Jane Doe"'],
+    examples: [
+      'tenantctl entra users restore 6e7b768e-07e2-4810-8459-485f84f8f204',
+      'tenantctl entra users restore "Jane Doe"',
+    ],
     args: [{ ...USER_ARG, description: 'Deleted user id, display name or original UPN.' }],
     risk: 'write',
     permissions: {
@@ -1348,8 +1351,8 @@ export const commands: AnyCommand[] = [
       'running it again for an assigned SKU replaces its disabled plans. The user needs a usageLocation first. ' +
       'Dry run shows available seats.',
     examples: [
-      'm365 entra users license add jane@contoso.com --sku SPE_E3',
-      'm365 entra users license add jane@contoso.com --sku ENTERPRISEPACK --disable-plans YAMMER_ENTERPRISE,SWAY',
+      'tenantctl entra users license add jane@contoso.com --sku SPE_E3',
+      'tenantctl entra users license add jane@contoso.com --sku ENTERPRISEPACK --disable-plans YAMMER_ENTERPRISE,SWAY',
     ],
     args: [
       USER_ARG,
@@ -1385,7 +1388,7 @@ export const commands: AnyCommand[] = [
       const { user, sku, plans } = await planLicenseAdd(ctx, args);
       if (!user.usageLocation) {
         throw new CliError('USAGE', `${user.userPrincipalName} has no usage location, which licensing requires`, {
-          hint: `Set it first: m365 entra users update ${user.userPrincipalName} --usage-location US (their country).`,
+          hint: `Set it first: tenantctl entra users update ${user.userPrincipalName} --usage-location US (their country).`,
         });
       }
       await ctx.graph.post(`/users/${seg(user.id)}/assignLicense`, {
@@ -1396,7 +1399,7 @@ export const commands: AnyCommand[] = [
         user: identity(user),
         assigned: sku.skuPartNumber,
         disabledPlans: plans.map((p) => p.servicePlanName),
-        next: `Check provisioning: m365 entra users licenses ${user.userPrincipalName}`,
+        next: `Check provisioning: tenantctl entra users licenses ${user.userPrincipalName}`,
       };
     },
   }),
@@ -1408,7 +1411,7 @@ export const commands: AnyCommand[] = [
     description:
       'The user loses the apps and services in that SKU (data such as the mailbox is kept for a grace period). ' +
       'Group-inherited licenses cannot be removed per user: the error names the group to change instead.',
-    examples: ['m365 entra users license remove jane@contoso.com --sku SPE_E3'],
+    examples: ['tenantctl entra users license remove jane@contoso.com --sku SPE_E3'],
     args: [USER_ARG, { name: 'sku', type: 'string', required: true, description: 'SKU part number or skuId.' }],
     risk: 'destructive',
     permissions: {
@@ -1444,8 +1447,8 @@ export const commands: AnyCommand[] = [
       'must be enabled for the user; isUsable=false with DisabledByPolicy means it is not. Multi-use passes need ' +
       'the policy to allow them.',
     examples: [
-      'm365 entra users tap jane@contoso.com',
-      'm365 entra users tap jane@contoso.com --lifetime-minutes 480 --one-time',
+      'tenantctl entra users tap jane@contoso.com',
+      'tenantctl entra users tap jane@contoso.com --lifetime-minutes 480 --one-time',
     ],
     args: [
       USER_ARG,
@@ -1505,7 +1508,7 @@ export const commands: AnyCommand[] = [
       'Get the method id from `users auth-methods`. Typical "new phone" flow: remove the old Authenticator and ' +
       'phone methods, then `users tap` so they can register again. The password cannot be removed. Removing the ' +
       "default method can fail until it is the user's last of that kind.",
-    examples: ['m365 entra users auth-method remove jane@contoso.com 3179e48a-750b-4051-897c-87b9720928f7'],
+    examples: ['tenantctl entra users auth-method remove jane@contoso.com 3179e48a-750b-4051-897c-87b9720928f7'],
     args: [
       USER_ARG,
       {

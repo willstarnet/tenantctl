@@ -234,7 +234,7 @@ export async function resolveManagedDevice(ctx: Context, ref: string, select = D
     );
     if (!byEntraId.items.length) {
       throw new CliError('NOT_FOUND', `No Intune device with id or Entra device id ${value}`, {
-        hint: 'The device may not be enrolled in Intune. Check Entra with `m365 entra devices get` if available.',
+        hint: 'The device may not be enrolled in Intune. Check Entra with `tenantctl entra devices get` if available.',
       });
     }
     return pickOne(byEntraId.items, value, 'device', (d) => [d.azureADDeviceId], describeDevice);

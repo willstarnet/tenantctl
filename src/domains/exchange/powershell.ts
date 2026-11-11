@@ -37,7 +37,7 @@ const MAILBOX_ARG = {
 } as const;
 
 const IDENTITY_HINT =
-  'Use the email address or alias; `m365 entra users list --search <name>` or `m365 exchange dl list --search` finds it.';
+  'Use the email address or alias; `tenantctl entra users list --search <name>` or `tenantctl exchange dl list --search` finds it.';
 
 /** Re-raise bridge errors with the code and hint an agent can act on. */
 function mapExoError(error: unknown): never {
@@ -419,7 +419,7 @@ export const commands: AnyCommand[] = [
       'manager. Without --keep-copy the mailbox keeps no copy. Destructive because mail leaves the mailbox; the ' +
       'preview shows current forwarding and whether the target is external (external forwarding may also be ' +
       `blocked by the outbound spam policy). ${BRIDGE_NOTE}`,
-    examples: ['m365 exchange forwarding set jane@contoso.com --to bob@contoso.com --keep-copy'],
+    examples: ['tenantctl exchange forwarding set jane@contoso.com --to bob@contoso.com --keep-copy'],
     args: [
       MAILBOX_ARG,
       { name: 'to', type: 'string', required: true, description: 'SMTP address to forward to.' },
@@ -459,8 +459,8 @@ export const commands: AnyCommand[] = [
     summary: 'Remove mailbox-level forwarding',
     description:
       'Clears ForwardingSmtpAddress and ForwardingAddress and turns DeliverToMailboxAndForward off. Inbox-rule ' +
-      `forwarding is separate: see \`m365 exchange forwarding <mailbox>\` and \`exchange rules delete\`. ${BRIDGE_NOTE}`,
-    examples: ['m365 exchange forwarding clear jane@contoso.com'],
+      `forwarding is separate: see \`tenantctl exchange forwarding <mailbox>\` and \`exchange rules delete\`. ${BRIDGE_NOTE}`,
+    examples: ['tenantctl exchange forwarding clear jane@contoso.com'],
     args: [MAILBOX_ARG],
     risk: 'destructive',
     permissions: EXO_PERMISSIONS,
@@ -496,7 +496,7 @@ export const commands: AnyCommand[] = [
       'One flat list `{ user, access }` from Get-MailboxPermission (FullAccess), Get-RecipientPermission (SendAs) ' +
       'and GrantSendOnBehalfTo. The mailbox owner (NT AUTHORITY\\SELF) and inherited/system entries are left out ' +
       `unless --include-inherited. ${BRIDGE_NOTE}`,
-    examples: ['m365 exchange permissions list shared-finance@contoso.com'],
+    examples: ['tenantctl exchange permissions list shared-finance@contoso.com'],
     args: [
       MAILBOX_ARG,
       { name: 'includeInherited', type: 'boolean', description: 'Also show inherited permissions (inherited: true).' },
@@ -517,8 +517,8 @@ export const commands: AnyCommand[] = [
       'full = open the mailbox (auto-mapped into Outlook unless --no-automap); sendas = send as the mailbox; ' +
       `sendonbehalf = send "on behalf of". Destructive because it opens a mailbox to someone. ${BRIDGE_NOTE}`,
     examples: [
-      'm365 exchange permissions add shared-finance@contoso.com bob@contoso.com --access full',
-      'm365 exchange permissions add jane@contoso.com bob@contoso.com --access sendas',
+      'tenantctl exchange permissions add shared-finance@contoso.com bob@contoso.com --access full',
+      'tenantctl exchange permissions add jane@contoso.com bob@contoso.com --access sendas',
     ],
     args: [
       ...PERMISSION_ARGS,
@@ -554,7 +554,7 @@ export const commands: AnyCommand[] = [
     name: 'permissions remove',
     summary: 'Revoke FullAccess, Send As or Send on Behalf on a mailbox',
     description: `Removes the permission; Outlook drops an auto-mapped mailbox within a few hours. ${BRIDGE_NOTE}`,
-    examples: ['m365 exchange permissions remove shared-finance@contoso.com bob@contoso.com --access full'],
+    examples: ['tenantctl exchange permissions remove shared-finance@contoso.com bob@contoso.com --access full'],
     args: PERMISSION_ARGS,
     risk: 'destructive',
     permissions: EXO_PERMISSIONS,
@@ -585,7 +585,7 @@ export const commands: AnyCommand[] = [
       'mailboxes need no license up to 50 GB without archive or hold. A member grant can fail right after creation ' +
       `while Exchange replicates; retry it with \`exchange permissions add\`. ${BRIDGE_NOTE}`,
     examples: [
-      'm365 exchange shared-mailbox create --name "Finance" --email finance@contoso.com --members jane@contoso.com,bob@contoso.com',
+      'tenantctl exchange shared-mailbox create --name "Finance" --email finance@contoso.com --members jane@contoso.com,bob@contoso.com',
     ],
     args: [
       { name: 'name', type: 'string', required: true, description: 'Display name (also the unique Name).' },
@@ -642,7 +642,7 @@ export const commands: AnyCommand[] = [
       'Typical leaver flow: convert to shared, grant access, then remove the license. A shared mailbox over 50 GB, ' +
       'with an archive, or on hold still needs a license; the preview shows size, archive and holds. Converting ' +
       `to regular needs a license on the account before it can be used. ${BRIDGE_NOTE}`,
-    examples: ['m365 exchange mailbox convert jane@contoso.com --to shared'],
+    examples: ['tenantctl exchange mailbox convert jane@contoso.com --to shared'],
     args: [
       MAILBOX_ARG,
       { name: 'to', type: 'string', required: true, choices: ['shared', 'regular'], description: 'Target type.' },
@@ -685,9 +685,9 @@ export const commands: AnyCommand[] = [
     name: 'mailbox details',
     summary: 'Exchange-side mailbox facts: type, aliases, GAL visibility, forwarding, hold, archive, size, last logon',
     description:
-      'Get-Mailbox + Get-MailboxStatistics in one session. Complements `m365 exchange mailbox` (Graph settings). ' +
+      'Get-Mailbox + Get-MailboxStatistics in one session. Complements `tenantctl exchange mailbox` (Graph settings). ' +
       `\`statistics\` is { error } when the mailbox was never logged on to. ${BRIDGE_NOTE}`,
-    examples: ['m365 exchange mailbox details jane@contoso.com'],
+    examples: ['tenantctl exchange mailbox details jane@contoso.com'],
     args: [MAILBOX_ARG],
     risk: 'read',
     permissions: EXO_PERMISSIONS,
@@ -737,7 +737,7 @@ export const commands: AnyCommand[] = [
     name: 'dl list',
     summary: 'List distribution lists and mail-enabled security groups',
     description: `--search matches name, alias and email (ambiguous name resolution). ${BRIDGE_NOTE}`,
-    examples: ['m365 exchange dl list --search finance'],
+    examples: ['tenantctl exchange dl list --search finance'],
     args: [{ name: 'search', type: 'string', description: 'Name, alias or email prefix.' }, ...LIST_ARGS],
     risk: 'read',
     permissions: EXO_PERMISSIONS,
@@ -768,7 +768,7 @@ export const commands: AnyCommand[] = [
     name: 'dl members',
     summary: 'List members of a distribution list',
     description: BRIDGE_NOTE,
-    examples: ['m365 exchange dl members finance@contoso.com'],
+    examples: ['tenantctl exchange dl members finance@contoso.com'],
     args: [GROUP_ARG, ...LIST_ARGS],
     risk: 'read',
     permissions: EXO_PERMISSIONS,
@@ -795,7 +795,7 @@ export const commands: AnyCommand[] = [
     description:
       'Adds each member in one session and reports per member (`skipped` when already a member). Works even when ' +
       `you are not a group owner (BypassSecurityGroupManagerCheck). ${BRIDGE_NOTE}`,
-    examples: ['m365 exchange dl add-member finance@contoso.com jane@contoso.com bob@contoso.com'],
+    examples: ['tenantctl exchange dl add-member finance@contoso.com jane@contoso.com bob@contoso.com'],
     args: [
       GROUP_ARG,
       {
@@ -836,7 +836,7 @@ export const commands: AnyCommand[] = [
     name: 'dl remove-member',
     summary: 'Remove someone from a distribution list',
     description: BRIDGE_NOTE,
-    examples: ['m365 exchange dl remove-member finance@contoso.com bob@contoso.com'],
+    examples: ['tenantctl exchange dl remove-member finance@contoso.com bob@contoso.com'],
     args: [
       GROUP_ARG,
       { name: 'member', type: 'string', required: true, positional: true, description: 'Member to remove.' },
@@ -881,7 +881,7 @@ export const commands: AnyCommand[] = [
     summary: 'Create a distribution list',
     description: BRIDGE_NOTE,
     examples: [
-      'm365 exchange dl create --name "Finance Team" --email finance@contoso.com --members jane@contoso.com,bob@contoso.com',
+      'tenantctl exchange dl create --name "Finance Team" --email finance@contoso.com --members jane@contoso.com,bob@contoso.com',
     ],
     args: [
       { name: 'name', type: 'string', required: true, description: 'Unique name (also the display name).' },
@@ -924,8 +924,8 @@ export const commands: AnyCommand[] = [
       'quarantine with Security Administrator or the Quarantine Administrator role group; Security Reader / Global ' +
       `Reader can view. ${BRIDGE_NOTE}`,
     examples: [
-      'm365 exchange quarantine list --recipient jane@contoso.com',
-      'm365 exchange quarantine list --sender billing@vendor.com --days 14 --type Phish',
+      'tenantctl exchange quarantine list --recipient jane@contoso.com',
+      'tenantctl exchange quarantine list --sender billing@vendor.com --days 14 --type Phish',
     ],
     args: [
       { name: 'recipient', type: 'string', description: 'Recipient address.' },
@@ -974,8 +974,8 @@ export const commands: AnyCommand[] = [
       'Default and --to-all release to every original recipient; --user releases to specific addresses. Only ' +
       `release what you have checked is safe: phish/malware reach the inbox. ${BRIDGE_NOTE}`,
     examples: [
-      'm365 exchange quarantine release "c14401cf-...\\4c2ca98e-..." --to-all',
-      'm365 exchange quarantine release "c14401cf-...\\4c2ca98e-..." --user jane@contoso.com',
+      'tenantctl exchange quarantine release "c14401cf-...\\4c2ca98e-..." --to-all',
+      'tenantctl exchange quarantine release "c14401cf-...\\4c2ca98e-..." --user jane@contoso.com',
     ],
     args: [
       QUARANTINE_ID_ARG,
@@ -1013,7 +1013,7 @@ export const commands: AnyCommand[] = [
     name: 'quarantine delete',
     summary: 'Delete a quarantined message',
     description: `Removes it from quarantine; it can no longer be released. ${BRIDGE_NOTE}`,
-    examples: ['m365 exchange quarantine delete "c14401cf-...\\4c2ca98e-..."'],
+    examples: ['tenantctl exchange quarantine delete "c14401cf-...\\4c2ca98e-..."'],
     args: [QUARANTINE_ID_ARG],
     risk: 'destructive',
     permissions: QUARANTINE_PERMISSIONS,
@@ -1039,8 +1039,8 @@ export const commands: AnyCommand[] = [
       'unlimited). Needs Exchange Online Plan 2 (or an archiving add-on) on the mailbox. Turning it off lets ' +
       `retention delete held items. --note sets the retention comment users see in Outlook. ${BRIDGE_NOTE}`,
     examples: [
-      'm365 exchange hold jane@contoso.com --on --duration-days 2555 --note "Legal case 42"',
-      'm365 exchange hold jane@contoso.com --off',
+      'tenantctl exchange hold jane@contoso.com --on --duration-days 2555 --note "Legal case 42"',
+      'tenantctl exchange hold jane@contoso.com --off',
     ],
     args: [
       MAILBOX_ARG,
@@ -1090,7 +1090,7 @@ export const commands: AnyCommand[] = [
     name: 'archive enable',
     summary: 'Enable the online archive for a mailbox',
     description: `Enable-Mailbox -Archive. The archive needs no extra license up to 50 GB on most business plans. ${BRIDGE_NOTE}`,
-    examples: ['m365 exchange archive enable jane@contoso.com'],
+    examples: ['tenantctl exchange archive enable jane@contoso.com'],
     args: [MAILBOX_ARG],
     risk: 'write',
     permissions: EXO_PERMISSIONS,
@@ -1133,7 +1133,7 @@ export const commands: AnyCommand[] = [
     description:
       'Mail-flow troubleshooting: rules that redirect, block, add disclaimers or change spam scoring. `mode` Audit/' +
       `AuditAndNotify means the rule is only tested, not enforced. ${BRIDGE_NOTE}`,
-    examples: ['m365 exchange transport-rules'],
+    examples: ['tenantctl exchange transport-rules'],
     args: [...LIST_ARGS],
     risk: 'read',
     permissions: EXO_PERMISSIONS,

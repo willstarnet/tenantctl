@@ -182,7 +182,7 @@ async function planRevoke(
       'USAGE',
       'Say what to revoke: --grant, --all-delegated, --app-role-assignment or --all-application',
       {
-        hint: `List the app's grants and their ids first: m365 entra apps consents "${args.app}"`,
+        hint: `List the app's grants and their ids first: tenantctl entra apps consents "${args.app}"`,
       },
     );
   }
@@ -198,7 +198,7 @@ async function planRevoke(
     const unknown = wanted.filter((id) => !items.some((item) => idOf(item) === id));
     if (unknown.length) {
       throw new CliError('NOT_FOUND', `"${sp.displayName}" has no ${kind} with id ${unknown.join(', ')}`, {
-        hint: `Valid ids: ${items.map(idOf).join(', ') || '(none)'}. See m365 entra apps consents "${sp.id}".`,
+        hint: `Valid ids: ${items.map(idOf).join(', ') || '(none)'}. See tenantctl entra apps consents "${sp.id}".`,
       });
     }
     return items.filter((item) => wanted.includes(idOf(item)));
@@ -213,7 +213,7 @@ async function planRevoke(
   );
   if (!delegated.length && !application.length) {
     throw new CliError('NOT_FOUND', `"${sp.displayName}" holds no consents of the selected kind; nothing to revoke`, {
-      hint: `m365 entra apps consents "${sp.id}" shows what it holds.`,
+      hint: `tenantctl entra apps consents "${sp.id}" shows what it holds.`,
     });
   }
   return { sp, delegated, application };
@@ -230,8 +230,8 @@ const consentCommands: AnyCommand[] = [
       'app-only permissions (no user needed; the riskiest kind, e.g. Mail.ReadWrite). Ids (`grantId`, ' +
       '`assignmentId`) feed `apps revoke-consent`. A section shows `{ error }` when a permission is missing.',
     examples: [
-      'm365 entra apps consents "Contoso Mail Sync"',
-      'm365 entra apps consents 1b2c3d4e-0000-0000-0000-000000000000',
+      'tenantctl entra apps consents "Contoso Mail Sync"',
+      'tenantctl entra apps consents 1b2c3d4e-0000-0000-0000-000000000000',
     ],
     args: [appArg],
     risk: 'read',
@@ -259,7 +259,7 @@ const consentCommands: AnyCommand[] = [
         delegated: sections.delegated,
         application: sections.application,
         next: total
-          ? `To remove everything: m365 entra apps revoke-consent "${sp.id}" --all-delegated --all-application`
+          ? `To remove everything: tenantctl entra apps revoke-consent "${sp.id}" --all-delegated --all-application`
           : undefined,
       });
     },
@@ -272,13 +272,13 @@ const consentCommands: AnyCommand[] = [
     description:
       'Illicit-consent-grant playbook: 1) `apps consents <app>` to see what it holds; 2) this command to revoke ' +
       '(--all-delegated --all-application, or pick ids with --grant / --app-role-assignment); 3) `apps disable <app>` ' +
-      'so it cannot get new tokens; 4) review what it did: `m365 entra signins --app <appId> --days 30` and ' +
-      '`m365 entra audit --category ApplicationManagement`. Access tokens already issued stay valid until they ' +
+      'so it cannot get new tokens; 4) review what it did: `tenantctl entra signins --app <appId> --days 30` and ' +
+      '`tenantctl entra audit --category ApplicationManagement`. Access tokens already issued stay valid until they ' +
       'expire (about an hour); revoke sessions of affected users if needed. Users can consent again unless the app ' +
       'is disabled or user consent is restricted. Preview lists every grant and permission that will be removed.',
     examples: [
-      'm365 entra apps revoke-consent "Contoso Mail Sync" --all-delegated --all-application',
-      'm365 entra apps revoke-consent "Contoso Mail Sync" --grant <grantId>',
+      'tenantctl entra apps revoke-consent "Contoso Mail Sync" --all-delegated --all-application',
+      'tenantctl entra apps revoke-consent "Contoso Mail Sync" --grant <grantId>',
     ],
     args: [
       appArg,
@@ -352,9 +352,9 @@ const consentCommands: AnyCommand[] = [
           ...status(delegated.length + i),
         })),
         next: [
-          `m365 entra apps disable "${sp.id}"`,
-          `m365 entra signins --app ${sp.appId} --days 30`,
-          'm365 entra audit --category ApplicationManagement --days 30',
+          `tenantctl entra apps disable "${sp.id}"`,
+          `tenantctl entra signins --app ${sp.appId} --days 30`,
+          'tenantctl entra audit --category ApplicationManagement --days 30',
         ],
       };
     },
@@ -370,7 +370,7 @@ const consentCommands: AnyCommand[] = [
       '`apps revoke-consent` for a malicious app, or to pause a misbehaving integration. Tokens already issued ' +
       'stay valid until they expire. Needs Application.ReadWrite.All (Application.ReadWrite.OwnedBy only covers ' +
       "apps the caller owns, so it can't disable third-party apps).",
-    examples: ['m365 entra apps disable "Contoso Mail Sync"'],
+    examples: ['tenantctl entra apps disable "Contoso Mail Sync"'],
     args: [appArg],
     risk: 'destructive',
     permissions: {
@@ -396,7 +396,7 @@ const consentCommands: AnyCommand[] = [
       return {
         app: { ...shapeServicePrincipal(sp), accountEnabled: false },
         status: 'disabled',
-        next: `Review its activity: m365 entra signins --app ${sp.appId} --days 30`,
+        next: `Review its activity: tenantctl entra signins --app ${sp.appId} --days 30`,
       };
     },
   }),
@@ -406,7 +406,7 @@ const consentCommands: AnyCommand[] = [
     name: 'apps enable',
     summary: 'Re-enable a disabled enterprise app',
     description: 'Sets the service principal accountEnabled true; users and the app can get tokens again.',
-    examples: ['m365 entra apps enable "Contoso Mail Sync"'],
+    examples: ['tenantctl entra apps enable "Contoso Mail Sync"'],
     args: [appArg],
     risk: 'write',
     permissions: {
@@ -572,7 +572,9 @@ async function resolveReview(ctx: Context, ref: string): Promise<ReviewDefinitio
       query: { $select: 'id,displayName,status' },
     });
     if (!def)
-      throw new CliError('NOT_FOUND', `No access review with id ${value}`, { hint: 'm365 entra access-reviews list' });
+      throw new CliError('NOT_FOUND', `No access review with id ${value}`, {
+        hint: 'tenantctl entra access-reviews list',
+      });
     return def;
   }
   const { items } = await ctx.graph.list<ReviewDefinition>(DEFINITIONS, {
@@ -603,7 +605,7 @@ const accessReviewCommands: AnyCommand[] = [
       'access is reviewed (ids are groups, apps or roles; resolve with `entra groups get` / `entra apps get`). ' +
       '`currentInstance` is the running or most recent instance (`daysLeft` while in progress); `nextInstance` ' +
       'appears when Graph has already scheduled one. Next: `access-reviews decisions <id>`.',
-    examples: ['m365 entra access-reviews list', 'm365 entra access-reviews list --active'],
+    examples: ['tenantctl entra access-reviews list', 'tenantctl entra access-reviews list --active'],
     args: [{ name: 'active', type: 'boolean', description: 'Only reviews in progress now.' }, ...LIST_ARGS],
     risk: 'read',
     permissions: { delegated: ['AccessReview.Read.All'], application: ['AccessReview.Read.All'] },
@@ -657,8 +659,8 @@ const accessReviewCommands: AnyCommand[] = [
       "NotReviewed; `recommendation` is Graph's suggestion from sign-in activity. --pending shows only NotReviewed. " +
       'Group-wide reviews of every Microsoft 365 group have one instance per group; pass --instance for others.',
     examples: [
-      'm365 entra access-reviews decisions "Quarterly guest review" --pending',
-      'm365 entra access-reviews decisions <reviewId> --all',
+      'tenantctl entra access-reviews decisions "Quarterly guest review" --pending',
+      'tenantctl entra access-reviews decisions <reviewId> --all',
     ],
     args: [
       { name: 'reviewId', type: 'string', required: true, positional: true, description: 'Review id or name.' },
@@ -685,7 +687,7 @@ const accessReviewCommands: AnyCommand[] = [
       }
       if (!instance) {
         throw new CliError('NOT_FOUND', `Access review "${review.displayName}" has no started instance yet`, {
-          hint: 'm365 entra access-reviews list shows when it starts.',
+          hint: 'tenantctl entra access-reviews list shows when it starts.',
         });
       }
       const result = await ctx.graph.list<ReviewDecision>(`${instancesPath}/${seg(instance.id)}/decisions`, {
@@ -810,7 +812,7 @@ const tenantRelationshipCommands: AnyCommand[] = [
       'only: in a customer tenant it returns nothing or 403, and Graph has no API listing which partners hold ' +
       'admin access to us (see Microsoft 365 admin center > Settings > Partner relationships). Role names need ' +
       'RoleManagement.Read.Directory; without it role ids are shown.',
-    examples: ['m365 entra partners', 'm365 entra partners --active --all'],
+    examples: ['tenantctl entra partners', 'tenantctl entra partners --active --all'],
     args: [{ name: 'active', type: 'boolean', description: 'Only active relationships.' }, ...LIST_ARGS],
     risk: 'read',
     permissions: {
@@ -860,8 +862,8 @@ const tenantRelationshipCommands: AnyCommand[] = [
       'Use for renewals and "why are licenses about to stop working?". `status` Enabled -> Warning (expired, grace) ' +
       '-> Suspended -> Deleted; `nextLifecycleDateTime` is when it moves to the next state if not renewed, ' +
       `\`daysToNextLifecycle\` counts to it and \`renewalSoon\` is true under ${RENEWAL_WINDOW_DAYS} days. Auto-renewing ` +
-      'subscriptions also show a date (the renewal). Seat usage per SKU: `m365 entra licenses`.',
-    examples: ['m365 entra subscriptions', 'm365 entra subscriptions --renewal-soon'],
+      'subscriptions also show a date (the renewal). Seat usage per SKU: `tenantctl entra licenses`.',
+    examples: ['tenantctl entra subscriptions', 'tenantctl entra subscriptions --renewal-soon'],
     args: [
       {
         name: 'renewalSoon',

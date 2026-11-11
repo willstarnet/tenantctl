@@ -78,7 +78,7 @@ function traceFindings(
   for (const trace of traces) {
     const status = trace.status ?? 'unknown';
     const lastEvent = details[trace.id]?.at(-1)?.description;
-    const next = `m365 exchange trace details ${trace.id} --recipient ${trace.recipientAddress ?? recipient}`;
+    const next = `tenantctl exchange trace details ${trace.id} --recipient ${trace.recipientAddress ?? recipient}`;
     if (status === 'failed') {
       findings.push({
         severity: 'high',
@@ -102,7 +102,7 @@ function traceFindings(
         area: 'delivery',
         issue: `Delivered to Junk Email: ${describe(trace)}`,
         detail: lastEvent ?? 'Marked as spam by filtering.',
-        next: `m365 exchange messages search ${recipient} --folder junk --from ${trace.senderAddress ?? '<sender>'}`,
+        next: `tenantctl exchange messages search ${recipient} --folder junk --from ${trace.senderAddress ?? '<sender>'}`,
       });
     } else if (status === 'pending' || status === 'gettingStatus') {
       findings.push({
@@ -121,7 +121,7 @@ function traceFindings(
       area: 'delivery',
       issue: `${delivered.length} message${delivered.length === 1 ? ' was' : 's were'} delivered to the mailbox`,
       detail: 'If the user cannot see it, check inbox rules (below), Junk, Focused/Other and Deleted Items.',
-      next: `m365 exchange messages search ${recipient}${delivered[0]?.senderAddress ? ` --from ${delivered[0].senderAddress}` : ''}`,
+      next: `tenantctl exchange messages search ${recipient}${delivered[0]?.senderAddress ? ` --from ${delivered[0].senderAddress}` : ''}`,
     });
   }
   return findings;
@@ -137,7 +137,7 @@ function ruleFindings(rules: ShapedInboxRule[], recipient: string): Finding[] {
       detail: [r.conditions.length ? `When: ${r.conditions.join('; ')}.` : 'Applies to all mail.', r.reason]
         .filter(Boolean)
         .join(' '),
-      next: `m365 exchange rules list ${recipient}`,
+      next: `tenantctl exchange rules list ${recipient}`,
     }));
 }
 
@@ -151,11 +151,11 @@ export const commands: AnyCommand[] = [
       'or with a subject), pulls the delivery events for up to 5 undelivered ones (failed, quarantined, junked, ' +
       "pending) so the last event explains the outcome, and checks the recipient's inbox rules that delete, move " +
       'or forward mail. Message trace covers the last 10 days per query (90 days back) and needs the one-time ' +
-      'message-trace service principal (see `m365 exchange trace --help`); inbox rules of another user need app-only ' +
+      'message-trace service principal (see `tenantctl exchange trace --help`); inbox rules of another user need app-only ' +
       'auth.',
     examples: [
-      'm365 troubleshoot mail jane@contoso.com --sender billing@vendor.com',
-      'm365 troubleshoot mail jane@contoso.com --subject "Invoice" --days 5',
+      'tenantctl troubleshoot mail jane@contoso.com --sender billing@vendor.com',
+      'tenantctl troubleshoot mail jane@contoso.com --subject "Invoice" --days 5',
     ],
     args: [
       { name: 'recipient', type: 'string', required: true, positional: true, description: 'Recipient email address.' },

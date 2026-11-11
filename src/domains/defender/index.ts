@@ -530,10 +530,10 @@ const securityCommands: AnyCommand[] = [
       'Start here for "is anything going on?" or "what is open?". Each row is an incident: a group of related ' +
       'alerts across Defender products. alertCount shows how many alerts it groups; status active means nobody ' +
       'closed it; redirected means it was merged into another incident. Use --unassigned to find work nobody owns. ' +
-      `Next: \`m365 defender incidents get <id>\` for alerts and affected users/devices. ${LICENSE_NOTE}`,
+      `Next: \`tenantctl defender incidents get <id>\` for alerts and affected users/devices. ${LICENSE_NOTE}`,
     examples: [
-      'm365 defender incidents list --status active --severity high',
-      'm365 defender incidents list --days 7 --unassigned',
+      'tenantctl defender incidents list --status active --severity high',
+      'tenantctl defender incidents list --days 7 --unassigned',
     ],
     args: [
       {
@@ -587,9 +587,9 @@ const securityCommands: AnyCommand[] = [
       'Use to explain an incident: what fired (alerts with severity, product, category and MITRE techniques), ' +
       'who and what is involved (entities: users, devices, IPs, mailboxes, files, URLs, emails, apps, merged ' +
       'across all alerts) and what analysts said (comments). Next: investigate a user with ' +
-      '`m365 entra users get`, a device with `m365 intune devices get`, or close the incident with ' +
-      '`m365 defender incidents update <id> --status resolved --classification ...`.',
-    examples: ['m365 defender incidents get 3962396'],
+      '`tenantctl entra users get`, a device with `tenantctl intune devices get`, or close the incident with ' +
+      '`tenantctl defender incidents update <id> --status resolved --classification ...`.',
+    examples: ['tenantctl defender incidents get 3962396'],
     args: [{ name: 'id', type: 'string', required: true, positional: true, description: 'Incident id.' }],
     risk: 'read',
     permissions: READ_INCIDENTS,
@@ -633,8 +633,8 @@ const securityCommands: AnyCommand[] = [
       'as free text (normally a UPN); "none" clears it. --comment is added to the incident activity log. ' +
       'Updating an incident also updates its alerts.',
     examples: [
-      'm365 defender incidents update 3962396 --assign-to secops@contoso.com --status inProgress',
-      'm365 defender incidents update 3962396 --status resolved --classification falsePositive --determination notMalicious --comment "Pen test"',
+      'tenantctl defender incidents update 3962396 --assign-to secops@contoso.com --status inProgress',
+      'tenantctl defender incidents update 3962396 --status resolved --classification falsePositive --determination notMalicious --comment "Pen test"',
     ],
     args: [
       { name: 'id', type: 'string', required: true, positional: true, description: 'Incident id.' },
@@ -673,10 +673,10 @@ const securityCommands: AnyCommand[] = [
       'the evidence. Filter by --source to one product (e.g. microsoftDefenderForOffice365 for email threats, ' +
       'azureAdIdentityProtection for risky sign-ins). --category (e.g. InitialAccess, Execution, ' +
       'CredentialAccess) is matched client-side, so it pages until enough matches are found; combine it with ' +
-      `--days. Next: \`m365 defender alerts get <id>\` or \`incidents get <incidentId>\`. ${LICENSE_NOTE}`,
+      `--days. Next: \`tenantctl defender alerts get <id>\` or \`incidents get <incidentId>\`. ${LICENSE_NOTE}`,
     examples: [
-      'm365 defender alerts list --status new --severity high',
-      'm365 defender alerts list --source microsoftDefenderForOffice365 --days 7',
+      'tenantctl defender alerts list --status new --severity high',
+      'tenantctl defender alerts list --source microsoftDefenderForOffice365 --days 7',
     ],
     args: [
       SEVERITY_ARG,
@@ -711,7 +711,7 @@ const securityCommands: AnyCommand[] = [
       'entities summarizes the evidence (users, devices, IPs, mailboxes, files, URLs, emails, apps). ' +
       "recommendedActions is the product's remediation advice. Next: `incidents get <incidentId>` for the " +
       'wider picture, or `alerts update <id>` to triage.',
-    examples: ['m365 defender alerts get da637551227677560813_-961444813'],
+    examples: ['tenantctl defender alerts get da637551227677560813_-961444813'],
     args: [{ name: 'id', type: 'string', required: true, positional: true, description: 'Alert id.' }],
     risk: 'read',
     permissions: READ_ALERTS,
@@ -731,7 +731,7 @@ const securityCommands: AnyCommand[] = [
       'Only the options you pass change. --assign-to takes the owner as free text (normally a UPN); "none" ' +
       'clears it. To close a whole attack prefer `incidents update`, which updates all of its alerts.',
     examples: [
-      'm365 defender alerts update da637551227677560813_-961444813 --status resolved --classification truePositive --determination malware',
+      'tenantctl defender alerts update da637551227677560813_-961444813 --status resolved --classification truePositive --determination malware',
     ],
     args: [
       { name: 'id', type: 'string', required: true, positional: true, description: 'Alert id.' },
@@ -769,7 +769,7 @@ const securityCommands: AnyCommand[] = [
       'Runs the alerts-for-user hunting query (AlertEvidence joined to AlertInfo) and looks each alert up to ' +
       'add its status and incident. Use when asked "has anything flagged Jane?". Matches evidence by UPN or ' +
       `object id. Hunting data covers at most 30 days. ${LICENSE_NOTE}`,
-    examples: ['m365 defender alerts for-user jane@contoso.com --days 7'],
+    examples: ['tenantctl defender alerts for-user jane@contoso.com --days 7'],
     args: [
       { name: 'user', type: 'string', required: true, positional: true, description: 'UPN, email, name or id.' },
       { name: 'days', type: 'number', default: 30, description: 'Look back this many days (max 30).' },
@@ -803,7 +803,7 @@ const securityCommands: AnyCommand[] = [
       "Runs the alerts-for-device hunting query and adds each alert's status and incident. The device is " +
       'matched by name (short name or FQDN) or Defender device id, as Defender knows it; no Intune lookup. ' +
       `Hunting data covers at most 30 days. ${LICENSE_NOTE}`,
-    examples: ['m365 defender alerts for-device DESKTOP-123 --days 14'],
+    examples: ['tenantctl defender alerts for-device DESKTOP-123 --days 14'],
     args: [
       { name: 'device', type: 'string', required: true, positional: true, description: 'Device name or id.' },
       { name: 'days', type: 'number', default: 30, description: 'Look back this many days (max 30).' },
@@ -830,15 +830,15 @@ const securityCommands: AnyCommand[] = [
     name: 'hunt',
     summary: 'Run an advanced hunting (KQL) query or a curated template',
     description:
-      'Pass KQL directly, or --template <name> with --param key=value (see `m365 defender hunt templates`). ' +
+      'Pass KQL directly, or --template <name> with --param key=value (see `tenantctl defender hunt templates`). ' +
       'Template values are inserted as escaped KQL string literals. Output: columns (name, type) and rows. ' +
       'Graph returns up to 100,000 rows; this command shows the first --top, so add `| take`, `| summarize` or ' +
       '`| project` to keep results small. Data reaches back 30 days (default timespan). Long-running or ' +
       'expensive queries can be throttled (429) per tenant CPU quota. Read-only even though it is a POST. ' +
       LICENSE_NOTE,
     examples: [
-      'm365 defender hunt "DeviceInfo | summarize arg_max(Timestamp, *) by DeviceName | take 10"',
-      'm365 defender hunt --template emails-from-sender --param sender=bad@evil.example --timespan P7D',
+      'tenantctl defender hunt "DeviceInfo | summarize arg_max(Timestamp, *) by DeviceName | take 10"',
+      'tenantctl defender hunt --template emails-from-sender --param sender=bad@evil.example --timespan P7D',
     ],
     args: [
       { name: 'query', type: 'string', positional: true, description: 'KQL query (omit when using --template).' },
@@ -857,7 +857,7 @@ const securityCommands: AnyCommand[] = [
     async run(ctx, args) {
       if (Boolean(args.query) === Boolean(args.template)) {
         throw new CliError('USAGE', 'Pass either a KQL query or --template, not both or neither', {
-          hint: 'See `m365 defender hunt templates` for ready-made queries.',
+          hint: 'See `tenantctl defender hunt templates` for ready-made queries.',
         });
       }
       const kql = args.template ? renderTemplate(args.template, parseParams(args.param ?? [])) : (args.query as string);
@@ -883,9 +883,9 @@ const securityCommands: AnyCommand[] = [
     summary: 'List curated hunting queries and their parameters',
     description:
       'Each template answers a common question (sign-ins for a user, emails from a sender, processes on a ' +
-      'device...). Run one with `m365 defender hunt --template <name> --param key=value`. requires names the ' +
+      'device...). Run one with `tenantctl defender hunt --template <name> --param key=value`. requires names the ' +
       'product whose data the table needs; an empty result can mean that product is not licensed.',
-    examples: ['m365 defender hunt templates'],
+    examples: ['tenantctl defender hunt templates'],
     args: [],
     risk: 'read',
     permissions: {},
@@ -912,7 +912,7 @@ const securityCommands: AnyCommand[] = [
       'size (totalSeats) and the same industry. topActions ranks controls by points still available ' +
       '(remainingPoints) with cost, user impact and a portal link (actionUrl). Use for "how secure are we?" and ' +
       '"what should we fix first?". Scores are calculated daily.',
-    examples: ['m365 defender secure-score', 'm365 defender secure-score --top-actions 5'],
+    examples: ['tenantctl defender secure-score', 'tenantctl defender secure-score --top-actions 5'],
     args: [{ name: 'topActions', type: 'number', default: 10, description: 'How many improvement actions to show.' }],
     risk: 'read',
     permissions: {
@@ -1011,10 +1011,10 @@ const securityCommands: AnyCommand[] = [
     summary: 'Submit an email to Microsoft for analysis as phishing, spam, malware or not junk (beta API)',
     description:
       'Use when a user reports a suspicious message, or a legitimate message was junked. Identify the message ' +
-      'by the recipient and its Graph message id (from `m365 exchange` message search or Graph). Microsoft ' +
+      'by the recipient and its Graph message id (from `tenantctl exchange` message search or Graph). Microsoft ' +
       're-scans it; the result (status, result.category, result.detail) appears on the returned submission ' +
       'after a while. Needs Defender for Office 365 or Exchange Online Protection. (beta API)',
-    examples: ['m365 defender threat-submit email jane@contoso.com AAMkADU3MWUxOTU0... --category phishing'],
+    examples: ['tenantctl defender threat-submit email jane@contoso.com AAMkADU3MWUxOTU0... --category phishing'],
     args: [
       { name: 'user', type: 'string', required: true, positional: true, description: 'Recipient mailbox owner.' },
       { name: 'messageId', type: 'string', required: true, positional: true, description: 'Graph message id.' },

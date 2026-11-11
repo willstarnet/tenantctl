@@ -13,7 +13,7 @@ export type ConcreteMode = Exclude<ConfirmMode, 'auto'>;
 export type Approver = (summary: string) => Promise<boolean>;
 
 const STRENGTH: Record<ConcreteMode, number> = { token: 0, tty: 1, dialog: 2 };
-const DIALOG_TITLE = 'm365: approve change';
+const DIALOG_TITLE = 'tenantctl: approve change';
 /** A pending approval is abandoned after this; the agent can re-run to ask again. */
 const DIALOG_TIMEOUT_SECONDS = 300;
 
@@ -31,11 +31,11 @@ function concrete(mode: ConfirmMode | undefined): ConcreteMode {
 
 /**
  * The profile setting decides; the environment may only make it stricter, so an agent exporting
- * `M365_CONFIRM_MODE=token` cannot switch human approval off.
+ * `TENANTCTL_CONFIRM_MODE=token` cannot switch human approval off.
  */
 export function effectiveConfirmMode(profile: Profile): ConcreteMode {
   const configured = concrete(profile.confirmMode);
-  const fromEnv = process.env.M365_CONFIRM_MODE;
+  const fromEnv = process.env.TENANTCTL_CONFIRM_MODE;
   if (fromEnv === 'tty' || fromEnv === 'dialog') return STRENGTH[fromEnv] > STRENGTH[configured] ? fromEnv : configured;
   return configured;
 }
@@ -75,9 +75,9 @@ function dialogApprove(summary: string): boolean {
         shell,
         '-NoProfile',
         '-Command',
-        `Add-Type -AssemblyName PresentationFramework; [System.Windows.MessageBox]::Show($env:M365_APPROVAL_TEXT, '${DIALOG_TITLE}', 'YesNo', 'Warning', 'No').ToString()`,
+        `Add-Type -AssemblyName PresentationFramework; [System.Windows.MessageBox]::Show($env:TENANTCTL_APPROVAL_TEXT, '${DIALOG_TITLE}', 'YesNo', 'Warning', 'No').ToString()`,
       ],
-      { stdout: 'pipe', stderr: 'pipe', env: { ...process.env, M365_APPROVAL_TEXT: text } },
+      { stdout: 'pipe', stderr: 'pipe', env: { ...process.env, TENANTCTL_APPROVAL_TEXT: text } },
     );
     return result.exitCode === 0 && result.stdout.toString().trim() === 'Yes';
   }
@@ -140,7 +140,7 @@ function unavailable(reason: string): CliError {
   return new CliError('DENIED', `Cannot ask for human approval: ${reason}`, {
     hint:
       'Run the command yourself in a terminal (tty mode needs one), or pick another approval method in your ' +
-      'own terminal: `m365 config set confirmMode tty|dialog|token`.',
+      'own terminal: `tenantctl config set confirmMode tty|dialog|token`.',
   });
 }
 
@@ -153,7 +153,7 @@ export function approverFor(mode: ConcreteMode): Approver {
 
 /** Plain-text summary of a preview for a dialog or terminal prompt, bounded so dialogs stay readable. */
 export function approvalSummary(commandId: string, profileLabel: string, preview: unknown): string {
-  const lines = [`m365 ${commandId}`, `Tenant/profile: ${profileLabel}`];
+  const lines = [`tenantctl ${commandId}`, `Tenant/profile: ${profileLabel}`];
   if (preview && typeof preview === 'object') {
     const action = 'action' in preview && typeof preview.action === 'string' ? preview.action : null;
     if (action) lines.push('', action);

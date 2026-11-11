@@ -41,7 +41,7 @@ export async function resolveTeam(ctx: Context, ref: string): Promise<ResolvedTe
     const group = await ctx.graph.tryGet<ResolvedTeam>(`/groups/${seg(id)}`, { query: { $select: TEAM_GROUP_SELECT } });
     if (!group)
       throw new CliError('NOT_FOUND', `No team with id ${id}`, {
-        hint: 'Find the team with `m365 teams list --search <name>`.',
+        hint: 'Find the team with `tenantctl teams list --search <name>`.',
       });
     if (group.resourceProvisioningOptions && !group.resourceProvisioningOptions.includes('Team')) {
       throw new CliError('NOT_FOUND', `Group "${group.displayName}" (${id}) is not a team`, {

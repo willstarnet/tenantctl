@@ -112,7 +112,7 @@ describe('intune apps assign / unassign', () => {
     });
     expect(second.outcome).toMatchObject({
       kind: 'result',
-      result: { status: 'assigned', next: 'm365 intune apps status "Zoom Workplace"' },
+      result: { status: 'assigned', next: 'tenantctl intune apps status "Zoom Workplace"' },
     });
   });
 

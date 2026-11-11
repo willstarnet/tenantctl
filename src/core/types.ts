@@ -46,12 +46,12 @@ export type ArgsOf<T extends readonly ArgSpec[]> = {
  * - read: no tenant change.
  * - write: reversible/low-impact change (sync a device, add a group member). Needs writes enabled.
  * - destructive: disruptive or irreversible (wipe, delete, disable, password reset). Needs writes enabled AND
- *   a confirm token obtained from a preview run.
+ *   a person's approval of the preview (OS dialog or terminal; in `token` mode a confirm token from a preview run).
  */
 export type Risk = 'read' | 'write' | 'destructive';
 
 /**
- * `delegated` and `application` are Microsoft Graph permissions ONLY: they become the scopes `m365 auth login`
+ * `delegated` and `application` are Microsoft Graph permissions ONLY: they become the scopes `tenantctl auth login`
  * requests, and Entra refuses the whole sign-in if one belongs to another API (AADSTS650053). Other APIs have
  * their own fields.
  */

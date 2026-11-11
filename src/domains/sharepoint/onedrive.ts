@@ -135,7 +135,7 @@ export const commands: AnyCommand[] = [
       'critical (<1% left), exceeded (uploads blocked). recycleBinGb counts toward usage. NOT_FOUND usually means ' +
       'the OneDrive was never provisioned (user never opened it) or the user has no SharePoint/OneDrive license. ' +
       'Next: `sharepoint onedrive usage --user <upn>` for file counts and last activity.',
-    examples: ['m365 sharepoint onedrive get jane@contoso.com'],
+    examples: ['tenantctl sharepoint onedrive get jane@contoso.com'],
     args: [{ name: 'user', type: 'string', required: true, positional: true, description: 'UPN, email, name or id.' }],
     risk: 'read',
     permissions: {
@@ -175,7 +175,10 @@ export const commands: AnyCommand[] = [
       'Tenant-wide report: storage used/allocated, file counts and last activity per OneDrive. Use --near-quota ' +
       'to find accounts at 90%+ (sorted fullest first), --user for one person. ' +
       `For a live single-user view use \`onedrive get\`. ${REPORT_NOTE}`,
-    examples: ['m365 sharepoint onedrive usage --near-quota', 'm365 sharepoint onedrive usage --user jane@contoso.com'],
+    examples: [
+      'tenantctl sharepoint onedrive usage --near-quota',
+      'tenantctl sharepoint onedrive usage --user jane@contoso.com',
+    ],
     args: [
       { name: 'user', type: 'string', description: 'Only this owner (UPN or display name).' },
       NEAR_QUOTA_ARG,
@@ -221,7 +224,10 @@ export const commands: AnyCommand[] = [
       'Tenant-wide report sorted by storage used: find full sites (--near-quota), inactive sites ' +
       '(daysSinceActivity) or one site (--site, matched against the URL). Excludes OneDrive (see `onedrive ' +
       `usage\`). ${REPORT_NOTE}`,
-    examples: ['m365 sharepoint sites usage --near-quota', 'm365 sharepoint sites usage --site /sites/finance'],
+    examples: [
+      'tenantctl sharepoint sites usage --near-quota',
+      'tenantctl sharepoint sites usage --site /sites/finance',
+    ],
     args: [
       { name: 'site', type: 'string', description: 'Only sites whose URL contains this text.' },
       NEAR_QUOTA_ARG,
@@ -269,8 +275,8 @@ export const commands: AnyCommand[] = [
       '--expires-days is honoured by SharePoint only for that link-based invitation, so pair it with --notify. ' +
       `Undo with \`onedrive revoke <owner> <grantee>\`. ${HANDOVER_NOTE}`,
     examples: [
-      'm365 sharepoint onedrive grant bob@contoso.com manager@contoso.com',
-      'm365 sharepoint onedrive grant bob@contoso.com manager@contoso.com --role write --notify --expires-days 30',
+      'tenantctl sharepoint onedrive grant bob@contoso.com manager@contoso.com',
+      'tenantctl sharepoint onedrive grant bob@contoso.com manager@contoso.com --role write --notify --expires-days 30',
     ],
     args: [
       {
@@ -349,7 +355,7 @@ export const commands: AnyCommand[] = [
         roles: permission?.roles ?? [args.role],
         driveUrl: drive.webUrl ?? null,
         expires: permission?.expirationDateTime ?? null,
-        next: `Send ${grantee.userPrincipalName} the driveUrl; undo with: m365 sharepoint onedrive revoke ${owner.userPrincipalName} ${grantee.userPrincipalName}`,
+        next: `Send ${grantee.userPrincipalName} the driveUrl; undo with: tenantctl sharepoint onedrive revoke ${owner.userPrincipalName} ${grantee.userPrincipalName}`,
       };
     },
   }),
@@ -362,7 +368,7 @@ export const commands: AnyCommand[] = [
       'hold). Links that also include other people are listed under `sharedLinks` and left alone; remove them ' +
       'with `files unshare`. Access the grantee has to individual files shared separately is not touched (see ' +
       `\`files permissions\`). ${HANDOVER_NOTE}`,
-    examples: ['m365 sharepoint onedrive revoke bob@contoso.com manager@contoso.com'],
+    examples: ['tenantctl sharepoint onedrive revoke bob@contoso.com manager@contoso.com'],
     args: [
       {
         name: 'owner',

@@ -90,7 +90,8 @@ function errorCodeFor(status: number): ErrorCode {
 }
 
 function hintFor(status: number, graphCode: string | undefined): string | undefined {
-  if (status === 401) return 'The token was rejected. Run `m365 auth status`, then `m365 auth login` if it expired.';
+  if (status === 401)
+    return 'The token was rejected. Run `tenantctl auth status`, then `tenantctl auth login` if it expired.';
   if (status === 429) return 'Graph is throttling this tenant/app. Wait a minute and retry with a smaller --top.';
   if (graphCode === 'Request_UnsupportedQuery' || graphCode === 'BadRequest') {
     return 'Graph rejected the query; check filter syntax and values.';

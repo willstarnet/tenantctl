@@ -186,7 +186,7 @@ describe('teams create', () => {
       status: 'accepted',
       teamId: TEAM_ID,
       operationId: 'op-1',
-      next: `m365 graph get "/teams('${TEAM_ID}')/operations('op-1')"`,
+      next: `tenantctl graph get "/teams('${TEAM_ID}')/operations('op-1')"`,
     });
   });
 

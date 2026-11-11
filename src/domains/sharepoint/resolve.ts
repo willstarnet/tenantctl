@@ -153,7 +153,7 @@ export async function resolveSite(ctx: Context, ref: string, select = SITE_SELEC
     const site = await ctx.graph.tryGet<Site>(path, { query });
     if (!site) {
       throw new CliError('NOT_FOUND', `No site at ${url.origin}/${sitePath.join('/')}`, {
-        hint: 'Check the URL, or find the site with `m365 sharepoint sites list --search <name>`.',
+        hint: 'Check the URL, or find the site with `tenantctl sharepoint sites list --search <name>`.',
       });
     }
     return site;
@@ -220,7 +220,7 @@ export async function resolveDriveItem(
       : await ctx.graph.get<DriveItem>(`/sites/${site.id}/drive/root`);
     if (!item) {
       throw new CliError('NOT_FOUND', `No item "${value}" in the default library of ${site.webUrl}`, {
-        hint: 'Paths are relative to the library root, e.g. "Reports/Q1.xlsx". Find it with `m365 sharepoint files search`.',
+        hint: 'Paths are relative to the library root, e.g. "Reports/Q1.xlsx". Find it with `tenantctl sharepoint files search`.',
       });
     }
   } else {

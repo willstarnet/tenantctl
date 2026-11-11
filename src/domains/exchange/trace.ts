@@ -100,7 +100,7 @@ async function traceRecipient(ctx: Context, traceId: string): Promise<string> {
   });
   if (!items.length) {
     throw new CliError('NOT_FOUND', `No message trace ${traceId} in the last 48 hours`, {
-      hint: 'Pass --recipient with the recipient address shown by `m365 exchange trace`.',
+      hint: 'Pass --recipient with the recipient address shown by `tenantctl exchange trace`.',
     });
   }
   const recipients = [...new Set(items.map((t) => t.recipientAddress ?? ''))].filter(Boolean);
@@ -172,12 +172,12 @@ export const commands: AnyCommand[] = [
       'Start here for "my email didn\'t arrive". One row per recipient with status: delivered, failed, pending, ' +
       'quarantined, filteredAsSpam, expanded (sent to a group). Searches the last --days (default 2, max 10 per ' +
       'query) or an explicit --start/--end window within the last 90 days. --sender/--recipient are exact SMTP ' +
-      'addresses; --subject matches a substring. Then run `m365 exchange trace details <id> --recipient <addr>` ' +
+      'addresses; --subject matches a substring. Then run `tenantctl exchange trace details <id> --recipient <addr>` ' +
       `for the hop-by-hop events and failure reason. ${TRACE_PREREQ}`,
     examples: [
-      'm365 exchange trace --recipient jane@contoso.com --sender billing@vendor.com',
-      'm365 exchange trace --sender jane@contoso.com --status failed --days 7',
-      'm365 exchange trace --subject "Q3 report" --start 2026-10-01T00:00:00Z --end 2026-10-08T00:00:00Z',
+      'tenantctl exchange trace --recipient jane@contoso.com --sender billing@vendor.com',
+      'tenantctl exchange trace --sender jane@contoso.com --status failed --days 7',
+      'tenantctl exchange trace --subject "Q3 report" --start 2026-10-01T00:00:00Z --end 2026-10-08T00:00:00Z',
     ],
     args: [
       { name: 'sender', type: 'string', description: 'Exact sender SMTP address.' },
@@ -213,9 +213,9 @@ export const commands: AnyCommand[] = [
     description:
       'Answers "why didn\'t my email arrive": each event (Receive, Deliver, Fail, Spam/Malware detection, Transport ' +
       'rule, Defer...) with its action and description; the last event usually explains the outcome. traceId is ' +
-      'the `id` from `m365 exchange trace`. --recipient is required for traces older than 48 hours or with several ' +
+      'the `id` from `tenantctl exchange trace`. --recipient is required for traces older than 48 hours or with several ' +
       `recipients. ${TRACE_PREREQ}`,
-    examples: ['m365 exchange trace details 4451a062-48cb-e80d-e8c0-196330437ae6 --recipient jane@contoso.com'],
+    examples: ['tenantctl exchange trace details 4451a062-48cb-e80d-e8c0-196330437ae6 --recipient jane@contoso.com'],
     args: [
       {
         name: 'traceId',
@@ -270,7 +270,7 @@ export const commands: AnyCommand[] = [
       'comes from the Microsoft 365 usage report (refreshed daily, see reportRefreshDate). If the tenant hides user ' +
       'details in reports (Microsoft 365 admin center > Settings > Org settings > Reports), names and UPNs are ' +
       'concealed hashes and --user cannot match. Delegated callers need a reports role such as Reports Reader.',
-    examples: ['m365 exchange usage --near-quota', 'm365 exchange usage --user jane@contoso.com'],
+    examples: ['tenantctl exchange usage --near-quota', 'tenantctl exchange usage --user jane@contoso.com'],
     args: [
       { name: 'user', type: 'string', description: 'Only rows whose UPN or display name contains this text.' },
       {

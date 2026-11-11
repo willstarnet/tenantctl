@@ -81,7 +81,7 @@ function loadCertificate(profile: Profile, secrets: Secrets): { thumbprintSha256
       .toString();
   } catch (error) {
     throw new CliError('CONFIG', `Cannot read the private key in ${path}: ${(error as Error).message}`, {
-      hint: 'The PEM must contain the private key. Set M365_CERT_PASSPHRASE if it is encrypted.',
+      hint: 'The PEM must contain the private key. Set TENANTCTL_CERT_PASSPHRASE if it is encrypted.',
     });
   }
   let thumbprint = profile.certificateThumbprint;
@@ -99,14 +99,14 @@ function msalError(error: unknown, loginHint: string): CliError {
   if (error instanceof CliError) return error;
   if (error instanceof InteractionRequiredAuthError) {
     return new CliError('AUTH_REQUIRED', `Sign-in required: ${error.errorMessage || error.message}`, {
-      hint: `Run \`${loginHint}\`${loginHint === 'm365 auth login' ? ' (add `--include-writes` if write commands need scopes you have not consented to)' : ''}.`,
+      hint: `Run \`${loginHint}\`${loginHint === 'tenantctl auth login' ? ' (add `--include-writes` if write commands need scopes you have not consented to)' : ''}.`,
     });
   }
   const message = error instanceof Error ? error.message : String(error);
   const aadsts = message.match(/AADSTS\d+/)?.[0];
   return new CliError('AUTH_FAILED', message.split('\n')[0] ?? message, {
     graphCode: aadsts,
-    hint: aadsts ? `Look up ${aadsts} with \`m365 entra signin-error ${aadsts.slice(6)}\`.` : undefined,
+    hint: aadsts ? `Look up ${aadsts} with \`tenantctl entra signin-error ${aadsts.slice(6)}\`.` : undefined,
   });
 }
 
@@ -164,7 +164,7 @@ export class Authenticator {
         delegatedScopes: [`${EXCHANGE_RESOURCE}/.default`],
         cacheSuffix: '-exchange',
         account: 'exchangeAccount',
-        loginHint: 'm365 auth login --service exchange',
+        loginHint: 'tenantctl auth login --service exchange',
       };
     }
     if (resource === 'defender') {
@@ -174,7 +174,7 @@ export class Authenticator {
           hint:
             'Use an app-only profile with WindowsDefenderATP application permissions (Machine.Isolate, ' +
             'Machine.Scan, ...), or register a public client with those delegated permissions and run ' +
-            '`m365 config set clientId <app-id>` then `m365 auth login --service defender`.',
+            '`tenantctl config set clientId <app-id>` then `tenantctl auth login --service defender`.',
         });
       }
       return {
@@ -183,7 +183,7 @@ export class Authenticator {
         delegatedScopes: [`${DEFENDER_RESOURCE}/.default`],
         cacheSuffix: '',
         account: 'account',
-        loginHint: 'm365 auth login --service defender',
+        loginHint: 'tenantctl auth login --service defender',
       };
     }
     return {
@@ -192,7 +192,7 @@ export class Authenticator {
       delegatedScopes: this.profile.scopes ?? ['User.Read'],
       cacheSuffix: '',
       account: 'account',
-      loginHint: 'm365 auth login',
+      loginHint: 'tenantctl auth login',
     };
   }
 
@@ -212,7 +212,7 @@ export class Authenticator {
     const { tenantId, clientId, certificatePath } = this.profile;
     if (!tenantId || !clientId) {
       throw new CliError('CONFIG', 'App-only auth needs a tenant id and client id', {
-        hint: 'Run `m365 config init --mode app --tenant <id> --client-id <id> [--cert <pem>]`.',
+        hint: 'Run `tenantctl config init --mode app --tenant <id> --client-id <id> [--cert <pem>]`.',
       });
     }
     const config = this.baseConfig(tenantId, clientId, '');
@@ -222,7 +222,7 @@ export class Authenticator {
       config.auth.clientSecret = this.secrets.clientSecret;
     } else {
       throw new CliError('CONFIG', 'App-only auth needs a certificate or a client secret', {
-        hint: 'Set certificatePath in the profile (preferred) or export M365_CLIENT_SECRET.',
+        hint: 'Set certificatePath in the profile (preferred) or export TENANTCTL_CLIENT_SECRET.',
       });
     }
     return new ConfidentialClientApplication(config);

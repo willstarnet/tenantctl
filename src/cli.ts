@@ -17,7 +17,7 @@ interface ParsedGlobals extends GlobalOptions {
 }
 
 function defaultFormat(): OutputFormat {
-  const env = process.env.M365_OUTPUT;
+  const env = process.env.TENANTCTL_OUTPUT;
   if (env === 'json' || env === 'table' || env === 'csv') return env;
   return process.stdout.isTTY ? 'table' : 'json';
 }
@@ -112,9 +112,9 @@ function riskTag(command: AnyCommand): string {
 function rootHelp(): string {
   const width = Math.max(...DOMAINS.map((d) => d.name.length));
   return [
-    `m365 ${pkg.version} - Microsoft 365 administration over Microsoft Graph`,
+    `tenantctl ${pkg.version} - Microsoft 365 administration over Microsoft Graph`,
     '',
-    'Usage: m365 <area> <command> [args] [options]',
+    'Usage: tenantctl <area> <command> [args] [options]',
     '',
     'Areas:',
     ...DOMAINS.map((d) => `  ${d.name.padEnd(width)}  ${d.summary}`),
@@ -126,15 +126,15 @@ function rootHelp(): string {
     '  --full                   Return raw Graph objects instead of compact summaries',
     '  --profile <name>         Use a configured profile (tenant/credentials)',
     '  --dry-run                Preview a change without making it',
-    '  --confirm <token>        Execute a destructive change previewed earlier',
+    '  --confirm <token>        confirmMode token only: execute a destructive change previewed earlier',
     '  --debug                  Log every Graph request to stderr',
     '  -h, --help               Help for any area or command',
     '',
-    'Exit codes: 0 ok, 1 error, 2 usage, 3 confirmation required, 4 sign-in required, 5 permission denied,',
+    'Exit codes: 0 ok, 1 error, 2 usage, 3 confirmation required (token mode), 4 sign-in required, 5 permission denied,',
     '            6 not found, 7 writes disabled, 8 ambiguous name, 9 throttled, 10 not approved by a person',
     '',
-    'Start with `m365 auth login`, then e.g. `m365 troubleshoot user jane@contoso.com`.',
-    'Agents: `m365 tools` prints every command with its arguments as JSON.',
+    'Start with `tenantctl auth login`, then e.g. `tenantctl troubleshoot user jane@contoso.com`.',
+    'Agents: `tenantctl tools` prints every command with its arguments as JSON.',
   ].join('\n');
 }
 
@@ -145,16 +145,16 @@ function domainHelp(domain: string): string {
   const shown = all.filter((c) => showWrites || c.risk === 'read');
   const hidden = all.length - shown.length;
   const width = Math.max(...shown.map((c) => commandId(c).length));
-  const lines = [`m365 ${domain} - ${info?.summary ?? ''}`, '', 'Commands:'];
+  const lines = [`tenantctl ${domain} - ${info?.summary ?? ''}`, '', 'Commands:'];
   for (const command of shown)
     lines.push(`  ${commandId(command).padEnd(width)}  ${command.summary}${riskTag(command)}`);
   if (hidden) {
     lines.push(
       '',
-      `${hidden} write command${hidden === 1 ? '' : 's'} hidden: writes are disabled (M365_ALLOW_WRITES=1).`,
+      `${hidden} write command${hidden === 1 ? '' : 's'} hidden: writes are disabled (TENANTCTL_ALLOW_WRITES=1).`,
     );
   }
-  lines.push('', `Run \`m365 ${domain} <command> --help\` for details.`);
+  lines.push('', `Run \`tenantctl ${domain} <command> --help\` for details.`);
   return lines.join('\n');
 }
 
@@ -181,7 +181,7 @@ function commandHelp(command: AnyCommand): string {
     lines.push('', 'Permissions:');
     if (delegated?.length) lines.push(`  delegated:   ${delegated.join(', ')}`);
     if (application?.length) lines.push(`  application: ${application.join(', ')}`);
-    if (exchange) lines.push('  exchange:    Exchange Online PowerShell (m365 auth login --service exchange)');
+    if (exchange) lines.push('  exchange:    Exchange Online PowerShell (tenantctl auth login --service exchange)');
     if (defender?.length) lines.push(`  defender:    ${defender.join(', ')} (WindowsDefenderATP)`);
     if (roles?.length) lines.push(`  admin role:  ${roles.join(' or ')}`);
   } else if (command.domain === 'graph') {
@@ -190,7 +190,7 @@ function commandHelp(command: AnyCommand): string {
   if (command.risk === 'destructive') {
     lines.push(
       '',
-      'Runs in two steps: the first run previews and prints a --confirm token; re-run with it to execute.',
+      'Asks you to approve the preview (OS dialog or terminal) before making the change. With confirmMode token it runs in two steps instead: the first run prints a --confirm token; re-run with it to execute.',
     );
   }
   return lines.join('\n');
@@ -219,7 +219,7 @@ function rerunHint(argv: string[], command: AnyCommand, token: string): string {
     }
     parts.push(shellQuote(current));
   }
-  return ['m365', ...parts, '--confirm', token].join(' ');
+  return ['tenantctl', ...parts, '--confirm', token].join(' ');
 }
 
 async function main(argv: string[]): Promise<number> {
@@ -250,12 +250,12 @@ async function main(argv: string[]): Promise<number> {
       if (DOMAINS.some((d) => d.name === words[0])) {
         const unknown = words.length > 1;
         (unknown ? process.stderr : process.stdout).write(
-          `${unknown ? `Unknown command: m365 ${words.join(' ')}\n\n` : ''}${domainHelp(words[0] as string)}\n`,
+          `${unknown ? `Unknown command: tenantctl ${words.join(' ')}\n\n` : ''}${domainHelp(words[0] as string)}\n`,
         );
         return unknown ? EXIT.usage : EXIT.ok;
       }
       throw new CliError('USAGE', `Unknown area "${words[0]}"`, {
-        hint: `Areas: ${DOMAINS.map((d) => d.name).join(', ')}. Run \`m365 --help\`.`,
+        hint: `Areas: ${DOMAINS.map((d) => d.name).join(', ')}. Run \`tenantctl --help\`.`,
       });
     }
     const { command, consumed } = found;
@@ -286,7 +286,7 @@ async function main(argv: string[]): Promise<number> {
     const cliError = toCliError(error);
     if (format === 'json') process.stdout.write(`${renderError(cliError, format)}\n`);
     else process.stderr.write(`${renderError(cliError, format)}\n`);
-    if (cliError.code === 'INTERNAL' && process.env.M365_DEBUG && error instanceof Error) {
+    if (cliError.code === 'INTERNAL' && process.env.TENANTCTL_DEBUG && error instanceof Error) {
       process.stderr.write(`${error.stack}\n`);
     }
     return cliError.exitCode;

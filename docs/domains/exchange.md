@@ -1,40 +1,40 @@
-# Exchange Online (`m365 exchange`)
+# Exchange Online (`tenantctl exchange`)
 
 Mailboxes are users: every `<user>` accepts a UPN, email/alias, display name, object id or `me`.
 
 ## Common tasks
 
-| Admin intent                                                | Command                                                                                                                                                           |
-| ----------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| "What kind of mailbox is this / is out-of-office on?"       | `m365 exchange mailbox jane@contoso.com`                                                                                                                          |
-| Check someone's out-of-office                               | `m365 exchange auto-reply get jane@contoso.com`                                                                                                                   |
-| Turn on out-of-office for a leaver                          | `m365 exchange auto-reply set jane@contoso.com --on --internal-message "Jane has left; contact bob@contoso.com" --external-audience all --external-message "..."` |
-| Schedule out-of-office                                      | `m365 exchange auto-reply set jane@contoso.com --scheduled --start 2026-12-20T17:00 --end 2027-01-05T08:00`                                                       |
-| Turn out-of-office off                                      | `m365 exchange auto-reply set jane@contoso.com --off`                                                                                                             |
-| "Is Jane's mail being forwarded anywhere?"                  | `m365 exchange forwarding jane@contoso.com`                                                                                                                       |
-| Look for malicious inbox rules (compromised account)        | `m365 exchange rules list jane@contoso.com`                                                                                                                       |
-| Sweep the tenant / a department for forwarding or BEC rules | `m365 exchange rules audit` / `m365 exchange rules audit --group "Finance"`                                                                                       |
-| Remove / pause a bad rule                                   | `m365 exchange rules delete jane@contoso.com "<rule name or id>"` / `m365 exchange rules disable ...`                                                             |
-| "My email to X never arrived"                               | `m365 exchange trace --sender jane@contoso.com --recipient x@partner.com --days 3`, then `m365 exchange trace details <id> --recipient x@partner.com`             |
-| "I'm not getting mail from vendor.com"                      | `m365 exchange trace --recipient jane@contoso.com --status filteredAsSpam` (also try `quarantined`, `failed`)                                                     |
-| Find a message in a mailbox                                 | `m365 exchange messages search jane@contoso.com --from billing@vendor.com --since 7`                                                                              |
-| Purge a phishing message from a mailbox                     | `m365 exchange messages delete jane@contoso.com "<internet-message-id>" [--hard]`                                                                                 |
-| Who can see/edit a calendar                                 | `m365 exchange calendar permissions jane@contoso.com`                                                                                                             |
-| What's on someone's / a room's calendar                     | `m365 exchange calendar events "Room 4.01" --days 3`                                                                                                              |
-| Whose mailbox is nearly full?                               | `m365 exchange usage --near-quota` / `m365 exchange usage --user jane`                                                                                            |
-| Forward a leaver's mail to their manager                    | `m365 exchange forwarding set jane@contoso.com --to bob@contoso.com --keep-copy`                                                                                  |
-| Stop mailbox-level forwarding                               | `m365 exchange forwarding clear jane@contoso.com`                                                                                                                 |
-| Who has access to this mailbox?                             | `m365 exchange permissions list finance@contoso.com`                                                                                                              |
-| Give / remove FullAccess, Send As, Send on Behalf           | `m365 exchange permissions add finance@contoso.com bob@contoso.com --access full` / `permissions remove ... --access sendas`                                      |
-| Create a shared mailbox for a team                          | `m365 exchange shared-mailbox create --name "Finance" --email finance@contoso.com --members jane@contoso.com,bob@contoso.com`                                     |
-| Convert a leaver's mailbox to shared                        | `m365 exchange mailbox convert jane@contoso.com --to shared`                                                                                                      |
-| Distribution lists: find, members, add/remove, create       | `m365 exchange dl list --search finance`, `dl members <dl>`, `dl add-member <dl> jane bob`, `dl remove-member <dl> bob`, `dl create --name ... --email ...`       |
-| "Mail from X went to quarantine"                            | `m365 exchange quarantine list --recipient jane@contoso.com --days 14`, then `quarantine release "<identity>"` or `quarantine delete "<identity>"`                |
-| Litigation hold on/off                                      | `m365 exchange hold jane@contoso.com --on --duration-days 2555 --note "Case 42"` / `--off`                                                                        |
-| Enable the online archive                                   | `m365 exchange archive enable jane@contoso.com`                                                                                                                   |
-| Is a mail flow rule interfering?                            | `m365 exchange transport-rules`                                                                                                                                   |
-| Mailbox type, aliases, size, last logon, forwarding         | `m365 exchange mailbox details jane@contoso.com`                                                                                                                  |
-| Find a free meeting room                                    | `m365 exchange rooms free --start 2026-11-12T14:00:00Z --end 2026-11-12T15:00:00Z --capacity 6` (`rooms list --building HQ`)                                      |
+| Admin intent                                                | Command                                                                                                                                                                |
+| ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| "What kind of mailbox is this / is out-of-office on?"       | `tenantctl exchange mailbox jane@contoso.com`                                                                                                                          |
+| Check someone's out-of-office                               | `tenantctl exchange auto-reply get jane@contoso.com`                                                                                                                   |
+| Turn on out-of-office for a leaver                          | `tenantctl exchange auto-reply set jane@contoso.com --on --internal-message "Jane has left; contact bob@contoso.com" --external-audience all --external-message "..."` |
+| Schedule out-of-office                                      | `tenantctl exchange auto-reply set jane@contoso.com --scheduled --start 2026-12-20T17:00 --end 2027-01-05T08:00`                                                       |
+| Turn out-of-office off                                      | `tenantctl exchange auto-reply set jane@contoso.com --off`                                                                                                             |
+| "Is Jane's mail being forwarded anywhere?"                  | `tenantctl exchange forwarding jane@contoso.com`                                                                                                                       |
+| Look for malicious inbox rules (compromised account)        | `tenantctl exchange rules list jane@contoso.com`                                                                                                                       |
+| Sweep the tenant / a department for forwarding or BEC rules | `tenantctl exchange rules audit` / `tenantctl exchange rules audit --group "Finance"`                                                                                  |
+| Remove / pause a bad rule                                   | `tenantctl exchange rules delete jane@contoso.com "<rule name or id>"` / `tenantctl exchange rules disable ...`                                                        |
+| "My email to X never arrived"                               | `tenantctl exchange trace --sender jane@contoso.com --recipient x@partner.com --days 3`, then `tenantctl exchange trace details <id> --recipient x@partner.com`        |
+| "I'm not getting mail from vendor.com"                      | `tenantctl exchange trace --recipient jane@contoso.com --status filteredAsSpam` (also try `quarantined`, `failed`)                                                     |
+| Find a message in a mailbox                                 | `tenantctl exchange messages search jane@contoso.com --from billing@vendor.com --since 7`                                                                              |
+| Purge a phishing message from a mailbox                     | `tenantctl exchange messages delete jane@contoso.com "<internet-message-id>" [--hard]`                                                                                 |
+| Who can see/edit a calendar                                 | `tenantctl exchange calendar permissions jane@contoso.com`                                                                                                             |
+| What's on someone's / a room's calendar                     | `tenantctl exchange calendar events "Room 4.01" --days 3`                                                                                                              |
+| Whose mailbox is nearly full?                               | `tenantctl exchange usage --near-quota` / `tenantctl exchange usage --user jane`                                                                                       |
+| Forward a leaver's mail to their manager                    | `tenantctl exchange forwarding set jane@contoso.com --to bob@contoso.com --keep-copy`                                                                                  |
+| Stop mailbox-level forwarding                               | `tenantctl exchange forwarding clear jane@contoso.com`                                                                                                                 |
+| Who has access to this mailbox?                             | `tenantctl exchange permissions list finance@contoso.com`                                                                                                              |
+| Give / remove FullAccess, Send As, Send on Behalf           | `tenantctl exchange permissions add finance@contoso.com bob@contoso.com --access full` / `permissions remove ... --access sendas`                                      |
+| Create a shared mailbox for a team                          | `tenantctl exchange shared-mailbox create --name "Finance" --email finance@contoso.com --members jane@contoso.com,bob@contoso.com`                                     |
+| Convert a leaver's mailbox to shared                        | `tenantctl exchange mailbox convert jane@contoso.com --to shared`                                                                                                      |
+| Distribution lists: find, members, add/remove, create       | `tenantctl exchange dl list --search finance`, `dl members <dl>`, `dl add-member <dl> jane bob`, `dl remove-member <dl> bob`, `dl create --name ... --email ...`       |
+| "Mail from X went to quarantine"                            | `tenantctl exchange quarantine list --recipient jane@contoso.com --days 14`, then `quarantine release "<identity>"` or `quarantine delete "<identity>"`                |
+| Litigation hold on/off                                      | `tenantctl exchange hold jane@contoso.com --on --duration-days 2555 --note "Case 42"` / `--off`                                                                        |
+| Enable the online archive                                   | `tenantctl exchange archive enable jane@contoso.com`                                                                                                                   |
+| Is a mail flow rule interfering?                            | `tenantctl exchange transport-rules`                                                                                                                                   |
+| Mailbox type, aliases, size, last logon, forwarding         | `tenantctl exchange mailbox details jane@contoso.com`                                                                                                                  |
+| Find a free meeting room                                    | `tenantctl exchange rooms free --start 2026-11-12T14:00:00Z --end 2026-11-12T15:00:00Z --capacity 6` (`rooms list --building HQ`)                                      |
 
 ## Reading the output
 
@@ -83,16 +83,16 @@ Rooms (`rooms list`, `rooms free`) use Graph Places (`Place.Read.All`) and getSc
 Use [Exchange Online PowerShell](https://learn.microsoft.com/powershell/exchange/exchange-online-powershell)
 (`Connect-ExchangeOnline`) or the Exchange admin center for these:
 
-| Task                                                                                    | Exchange Online PowerShell                                                                                   |
-| --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| Create room/equipment mailboxes, booking policies                                       | `New-Mailbox -Room`, `Set-CalendarProcessing`                                                                |
-| Create or change mail flow (transport) rules (listing: `m365 exchange transport-rules`) | `New-/Set-TransportRule`                                                                                     |
-| Inbound/outbound connectors                                                             | `Get-InboundConnector`, `Get-OutboundConnector`                                                              |
-| eDiscovery / retention holds (litigation hold: `m365 exchange hold`)                    | Purview / `m365 graph` security APIs                                                                         |
-| Auto-expanding archive (archive: `m365 exchange archive enable`)                        | `Enable-Mailbox -AutoExpandingArchive`                                                                       |
-| Per-folder sizes, mailbox quotas changes                                                | `Get-MailboxFolderStatistics`, `Set-Mailbox -ProhibitSendQuota` (Graph v1.0 mailFolder has item counts only) |
-| Change hidden-from-GAL or aliases (read: `m365 exchange mailbox details`)               | `Set-Mailbox -HiddenFromAddressListsEnabled`, `Set-Mailbox -EmailAddresses @{add=...}`                       |
-| Message trace older than 90 days                                                        | `Start-HistoricalSearch`                                                                                     |
-| Tenant-wide search and purge of a message                                               | Purview content search + `New-ComplianceSearchAction -Purge`, or Defender Threat Explorer                    |
-| Outlook on the web / POP / IMAP / SMTP AUTH per mailbox                                 | `Set-CASMailbox`                                                                                             |
-| Hidden inbox rules (some attacker-created rules don't appear in Graph or Outlook)       | `Get-InboxRule -Mailbox jane -IncludeHidden`                                                                 |
+| Task                                                                                         | Exchange Online PowerShell                                                                                   |
+| -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| Create room/equipment mailboxes, booking policies                                            | `New-Mailbox -Room`, `Set-CalendarProcessing`                                                                |
+| Create or change mail flow (transport) rules (listing: `tenantctl exchange transport-rules`) | `New-/Set-TransportRule`                                                                                     |
+| Inbound/outbound connectors                                                                  | `Get-InboundConnector`, `Get-OutboundConnector`                                                              |
+| eDiscovery / retention holds (litigation hold: `tenantctl exchange hold`)                    | Purview / `tenantctl graph` security APIs                                                                    |
+| Auto-expanding archive (archive: `tenantctl exchange archive enable`)                        | `Enable-Mailbox -AutoExpandingArchive`                                                                       |
+| Per-folder sizes, mailbox quotas changes                                                     | `Get-MailboxFolderStatistics`, `Set-Mailbox -ProhibitSendQuota` (Graph v1.0 mailFolder has item counts only) |
+| Change hidden-from-GAL or aliases (read: `tenantctl exchange mailbox details`)               | `Set-Mailbox -HiddenFromAddressListsEnabled`, `Set-Mailbox -EmailAddresses @{add=...}`                       |
+| Message trace older than 90 days                                                             | `Start-HistoricalSearch`                                                                                     |
+| Tenant-wide search and purge of a message                                                    | Purview content search + `New-ComplianceSearchAction -Purge`, or Defender Threat Explorer                    |
+| Outlook on the web / POP / IMAP / SMTP AUTH per mailbox                                      | `Set-CASMailbox`                                                                                             |
+| Hidden inbox rules (some attacker-created rules don't appear in Graph or Outlook)            | `Get-InboxRule -Mailbox jane -IncludeHidden`                                                                 |

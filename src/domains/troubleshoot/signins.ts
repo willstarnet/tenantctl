@@ -131,10 +131,10 @@ export function signinFindings(analysis: SigninAnalysis, upn: string): Finding[]
     if (group.benign) continue;
     const ongoing = !analysis.lastSuccess || group.lastSeen > analysis.lastSuccess;
     const spray = group.errorCode === 50126 && group.ipAddresses.length >= 3 && group.count >= 10;
-    let next = `m365 entra signin-error ${group.errorCode}`;
-    if (DEVICE_CODES[group.errorCode] && group.devices[0]) next = `m365 troubleshoot device "${group.devices[0]}"`;
-    else if (CA_CODES[group.errorCode]) next = `m365 troubleshoot signin ${upn}`;
-    else if (spray) next = `m365 entra risk-detections --user ${upn}`;
+    let next = `tenantctl entra signin-error ${group.errorCode}`;
+    if (DEVICE_CODES[group.errorCode] && group.devices[0]) next = `tenantctl troubleshoot device "${group.devices[0]}"`;
+    else if (CA_CODES[group.errorCode]) next = `tenantctl troubleshoot signin ${upn}`;
+    else if (spray) next = `tenantctl entra risk-detections --user ${upn}`;
     findings.push({
       severity: spray || ongoing ? 'high' : 'low',
       area: 'sign-in',

@@ -36,7 +36,7 @@ export const SIGNIN_ERRORS: readonly SigninErrorInfo[] = [
     code: 50034,
     name: 'UserAccountNotFound',
     meaning: 'No such account in the directory: mistyped username, or wrong tenant.',
-    action: 'Check the UPN the user typed against `m365 entra users get`.',
+    action: 'Check the UPN the user typed against `tenantctl entra users get`.',
   },
   {
     code: 50053,
@@ -60,7 +60,7 @@ export const SIGNIN_ERRORS: readonly SigninErrorInfo[] = [
     code: 50057,
     name: 'UserDisabled',
     meaning: 'The account is disabled (accountEnabled = false).',
-    action: 'Re-enable the account if the user should have access (`m365 entra users enable`).',
+    action: 'Re-enable the account if the user should have access (`tenantctl entra users enable`).',
   },
   {
     code: 50058,
@@ -85,7 +85,7 @@ export const SIGNIN_ERRORS: readonly SigninErrorInfo[] = [
     code: 50074,
     name: 'UserStrongAuthClientAuthNRequiredInterrupt',
     meaning: 'MFA was required and the user did not pass the challenge.',
-    action: "Check the user's MFA methods (`m365 entra users auth-methods`); usually user retries.",
+    action: "Check the user's MFA methods (`tenantctl entra users auth-methods`); usually user retries.",
   },
   {
     code: 50076,
@@ -111,7 +111,7 @@ export const SIGNIN_ERRORS: readonly SigninErrorInfo[] = [
     code: 50097,
     name: 'DeviceAuthenticationRequired',
     meaning: 'Policy requires device authentication and the device did not provide it.',
-    action: 'Check the device is Entra joined/registered and healthy (`m365 troubleshoot device`).',
+    action: 'Check the device is Entra joined/registered and healthy (`tenantctl troubleshoot device`).',
   },
   {
     code: 50105,
@@ -198,7 +198,7 @@ export const SIGNIN_ERRORS: readonly SigninErrorInfo[] = [
     code: 53000,
     name: 'DeviceNotCompliant',
     meaning: 'Conditional Access requires a compliant device and this device is not compliant (or not enrolled).',
-    action: 'Find why the device is non-compliant: `m365 troubleshoot device <name>`.',
+    action: 'Find why the device is non-compliant: `tenantctl troubleshoot device <name>`.',
   },
   {
     code: 53001,
@@ -222,7 +222,7 @@ export const SIGNIN_ERRORS: readonly SigninErrorInfo[] = [
     code: 53004,
     name: 'ProofUpBlockedDueToRisk',
     meaning: 'MFA registration blocked because the sign-in was risky.',
-    action: 'Investigate risk (`m365 entra risky-users`), then have the user register from a trusted location.',
+    action: 'Investigate risk (`tenantctl entra risky-users`), then have the user register from a trusted location.',
   },
   {
     code: 65001,
@@ -296,7 +296,7 @@ export const SIGNIN_ERRORS: readonly SigninErrorInfo[] = [
     code: 7000222,
     name: 'InvalidClientSecretExpiredKeysProvided',
     meaning: "The app's client secret has expired.",
-    action: 'Create a new secret or certificate (`m365 entra apps expiring` finds others about to lapse).',
+    action: 'Create a new secret or certificate (`tenantctl entra apps expiring` finds others about to lapse).',
   },
   {
     code: 81010,

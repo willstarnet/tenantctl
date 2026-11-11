@@ -128,7 +128,7 @@ export const commands: AnyCommand[] = [
       'Use to see which compliance policies exist and which ones devices are failing. assignments = 0 means the ' +
       'policy applies to nobody. devices.nonCompliant/error point at the policy to investigate with ' +
       '`compliance status <policy> --failing-only`.',
-    examples: ['m365 intune compliance list'],
+    examples: ['tenantctl intune compliance list'],
     args: [...LIST_ARGS],
     risk: 'read',
     permissions: { delegated: [READ_CONFIG], application: [READ_CONFIG], roles: INTUNE_READ_ROLES },
@@ -171,7 +171,7 @@ export const commands: AnyCommand[] = [
       'is compliant, nonCompliant, error, conflict, notApplicable or unknown; graceExpires is when a ' +
       'non-compliant device gets blocked by Conditional Access. Next: `devices compliance <device>` for the ' +
       'failing settings.',
-    examples: ['m365 intune compliance status "Windows 11 baseline" --failing-only'],
+    examples: ['tenantctl intune compliance status "Windows 11 baseline" --failing-only'],
     args: [
       { name: 'policy', type: 'string', required: true, positional: true, description: 'Policy name or id.' },
       FAILING_ONLY_ARG,
@@ -204,7 +204,7 @@ export const commands: AnyCommand[] = [
       'Shows every device configuration profile with `kind`: "profile" (classic templates, v1.0) or ' +
       '"settingsCatalog" (settings catalog / endpoint security, beta API). assigned=false means it applies to ' +
       'nobody. If the settings catalog call fails, the classic profiles are still returned with a warning.',
-    examples: ['m365 intune config list', 'm365 intune config list --all'],
+    examples: ['tenantctl intune config list', 'tenantctl intune config list --all'],
     args: [...LIST_ARGS],
     risk: 'read',
     permissions: { delegated: [READ_CONFIG], application: [READ_CONFIG], roles: INTUNE_READ_ROLES },
@@ -268,7 +268,7 @@ export const commands: AnyCommand[] = [
       '(kind "profile" in `config list`); settings catalog policies have no per-device status resource in ' +
       'Graph, so use the Intune admin center for those. Next: `devices config-states <device>` for the failing ' +
       'settings on one device.',
-    examples: ['m365 intune config status "Corporate Wi-Fi" --failing-only'],
+    examples: ['tenantctl intune config status "Corporate Wi-Fi" --failing-only'],
     args: [
       { name: 'policy', type: 'string', required: true, positional: true, description: 'Profile name or id.' },
       FAILING_ONLY_ARG,
@@ -323,7 +323,7 @@ export const commands: AnyCommand[] = [
       'Use to find an app before checking its deployment with `apps status`. type comes from the app kind ' +
       '(win32LobApp, iosVppApp, winGetApp, webApp...). --search matches name or publisher client-side, so it ' +
       'pages through the whole catalog.',
-    examples: ['m365 intune apps list --search teams'],
+    examples: ['tenantctl intune apps list --search teams'],
     args: [{ name: 'search', type: 'string', description: 'Substring of the app name or publisher.' }, ...LIST_ARGS],
     risk: 'read',
     permissions: { delegated: [READ_APPS], application: [READ_APPS], roles: INTUNE_READ_ROLES },
@@ -366,7 +366,7 @@ export const commands: AnyCommand[] = [
       'user counts (installed, failed, pending, notInstalled, notApplicable); failures lists devices with ' +
       'errorCode (hex, searchable in Microsoft docs) and installStateDetail. (beta API; per-device statuses ' +
       'are not populated for every app type.)',
-    examples: ['m365 intune apps status "Company Portal"'],
+    examples: ['tenantctl intune apps status "Company Portal"'],
     args: [
       { name: 'app', type: 'string', required: true, positional: true, description: 'App name or id.' },
       ...LIST_ARGS,
@@ -437,7 +437,10 @@ export const commands: AnyCommand[] = [
       '"assignedInSync" before the device is reset/turned on. enrollmentState "notContacted" means it has ' +
       'never enrolled. --serial matches part of the serial; --user matches the assigned user client-side. ' +
       '(beta API, needed for the deployment profile status.)',
-    examples: ['m365 intune autopilot list --serial 5CG1234', 'm365 intune autopilot list --user jane@contoso.com'],
+    examples: [
+      'tenantctl intune autopilot list --serial 5CG1234',
+      'tenantctl intune autopilot list --user jane@contoso.com',
+    ],
     args: [
       { name: 'serial', type: 'string', description: 'Serial number or part of it.' },
       { name: 'user', type: 'string', description: 'Assigned user UPN or part of it.' },
@@ -493,7 +496,7 @@ export const commands: AnyCommand[] = [
       '(--top caps the device list), then inspects the failing settings of up to --inspect devices (batched, 20 ' +
       'per Graph call) to rank reasons. byReason counts how many inspected devices fail each policy/setting. Devices ' +
       'whose inspection failed carry `error`. Next: `devices compliance <device>` or `compliance status`.',
-    examples: ['m365 intune report noncompliant', 'm365 intune report noncompliant --all --inspect 100'],
+    examples: ['tenantctl intune report noncompliant', 'tenantctl intune report noncompliant --all --inspect 100'],
     args: [
       {
         name: 'inspect',

@@ -5,16 +5,16 @@ service health first when several users report the same problem.
 
 ## Common tasks
 
-| Admin asks                                             | Command                                                      |
-| ------------------------------------------------------ | ------------------------------------------------------------ |
-| Is Microsoft 365 down? Is anything degraded right now? | `m365 health overview`                                       |
-| What is wrong with Exchange / Teams right now?         | `m365 health issues --service "Exchange Online" --active`    |
-| Incidents in the last week                             | `m365 health issues --classification incident --days 7`      |
-| Details and timeline of an incident                    | `m365 health issue EX123456`                                 |
-| What changes are coming to Teams?                      | `m365 health messages --service "Microsoft Teams" --days 30` |
-| What do we need to act on?                             | `m365 health messages --action-required`                     |
-| Major changes only                                     | `m365 health messages --major`                               |
-| Read a message center post                             | `m365 health message MC123456`                               |
+| Admin asks                                             | Command                                                           |
+| ------------------------------------------------------ | ----------------------------------------------------------------- |
+| Is Microsoft 365 down? Is anything degraded right now? | `tenantctl health overview`                                       |
+| What is wrong with Exchange / Teams right now?         | `tenantctl health issues --service "Exchange Online" --active`    |
+| Incidents in the last week                             | `tenantctl health issues --classification incident --days 7`      |
+| Details and timeline of an incident                    | `tenantctl health issue EX123456`                                 |
+| What changes are coming to Teams?                      | `tenantctl health messages --service "Microsoft Teams" --days 30` |
+| What do we need to act on?                             | `tenantctl health messages --action-required`                     |
+| Major changes only                                     | `tenantctl health messages --major`                               |
+| Read a message center post                             | `tenantctl health message MC123456`                               |
 
 Reading `health overview`: `degraded` lists services with an ongoing issue (investigating, service degradation,
 service interruption, extended recovery...). `recentlyRestored` lists services whose last issue is closed

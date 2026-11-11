@@ -4,21 +4,21 @@ import { effectiveConfirmMode, weakens } from '../src/core/approval.ts';
 import { loadConfig } from '../src/core/config.ts';
 import type { CliError } from '../src/core/errors.ts';
 import { auditLogPath } from '../src/core/safety.ts';
-import { decryptText, encryptText } from '../src/core/secretStore.ts';
+import { decryptText, dpapi, encryptText } from '../src/core/secretStore.ts';
 import { defineCommand } from '../src/core/types.ts';
 import { COMMANDS } from '../src/registry.ts';
 import { GraphClient } from '../src/core/graph.ts';
 import { commandById, createGraphMock, graphError, mockContext, runCommand } from './helpers/graphMock.ts';
 
 afterEach(() => {
-  delete process.env.M365_CONFIRM_MODE;
+  delete process.env.TENANTCTL_CONFIRM_MODE;
 });
 
 describe('human approval mode', () => {
   test('the environment can make approval stricter but never weaker', () => {
-    process.env.M365_CONFIRM_MODE = 'token';
+    process.env.TENANTCTL_CONFIRM_MODE = 'token';
     expect(effectiveConfirmMode({ authMode: 'delegated', confirmMode: 'tty' })).toBe('tty');
-    process.env.M365_CONFIRM_MODE = 'dialog';
+    process.env.TENANTCTL_CONFIRM_MODE = 'dialog';
     expect(effectiveConfirmMode({ authMode: 'delegated', confirmMode: 'token' })).toBe('dialog');
   });
 
@@ -42,20 +42,25 @@ describe('human approval mode', () => {
     },
   });
 
-  test('a valid confirm token is not enough when the person denies the change', async () => {
-    const first = await runCommand(wipe, ['pc1'], [], { allowWrites: true });
-    const token = first.outcome.kind === 'confirm' ? first.outcome.token : '';
-    const error = (await runCommand(wipe, ['pc1'], [], { allowWrites: true, confirm: token, approve: false }).catch(
+  const lastAuditOutcome = (): string => {
+    const entry: unknown = JSON.parse(readFileSync(auditLogPath(), 'utf8').trim().split('\n').at(-1) ?? '{}');
+    return entry && typeof entry === 'object' && 'outcome' in entry ? String(entry.outcome) : '';
+  };
+
+  test('dialog mode asks the person in the same run and acts on the answer, with no token', async () => {
+    const dialog = { allowWrites: true, profile: { confirmMode: 'dialog' as const } };
+    const denied = (await runCommand(wipe, ['pc1'], [], { ...dialog, approve: false }).catch(
       (e: unknown) => e,
     )) as CliError;
-    expect(error.code).toBe('DENIED');
-    expect(error.exitCode).toBe(10);
+    expect(denied.code).toBe('DENIED');
+    expect(denied.exitCode).toBe(10);
     expect(wiped).toBe(0);
-    const outcomes = readFileSync(auditLogPath(), 'utf8')
-      .trim()
-      .split('\n')
-      .map((l) => (JSON.parse(l) as { outcome: string }).outcome);
-    expect(outcomes.at(-1)).toBe('denied');
+    expect(lastAuditOutcome()).toBe('denied');
+
+    const approved = await runCommand(wipe, ['pc1'], [], { ...dialog, approve: true });
+    expect(approved.outcome).toEqual({ kind: 'result', result: { done: true } });
+    expect(wiped).toBe(1);
+    expect(lastAuditOutcome()).toBe('success');
   });
 
   test('weakening the approval mode or enabling writes needs the person; denial leaves the setting alone', async () => {
@@ -87,6 +92,14 @@ describe('token cache encryption', () => {
       plain: '{"Account":{},"RefreshToken":{}}',
       legacy: true,
     });
+  });
+
+  test.if(process.platform === 'win32')('DPAPI seals the cache key for this Windows user and unseals it', () => {
+    const key = Buffer.from('0123456789abcdef0123456789abcdef');
+    const sealed = dpapi('protect', key);
+    expect(sealed).not.toBeNull();
+    expect(sealed?.includes(key)).toBe(false);
+    expect(dpapi('unprotect', sealed ?? Buffer.alloc(0))?.equals(key)).toBe(true);
   });
 });
 

@@ -187,7 +187,7 @@ function tenantFindings(s: Sections): Finding[] {
         severity: 'high',
         area: 'service health',
         issue: `Microsoft reports an issue with ${d.service} (${d.status})`,
-        next: `m365 health issues --service "${d.service}" --active`,
+        next: `tenantctl health issues --service "${d.service}" --active`,
       });
     }
   }
@@ -202,7 +202,7 @@ function tenantFindings(s: Sections): Finding[] {
       issue: `Entra Connect has not synced for ${s.directorySync.hoursSinceLastSync} hours`,
       detail:
         'New users, password changes and group changes from on-premises AD are not reaching Microsoft 365. Check the Entra Connect server.',
-      next: 'm365 entra tenant',
+      next: 'tenantctl entra tenant',
     });
   }
   if (!isSettledError(s.licenses)) {
@@ -214,7 +214,7 @@ function tenantFindings(s: Sections): Finding[] {
           area: 'licenses',
           issue: `${sku.skuPartNumber}: ${sku.warning} units in renewal grace period, ${sku.suspended} suspended`,
           detail: 'Renew the subscription before the units are disabled.',
-          next: 'm365 entra licenses',
+          next: 'tenantctl entra licenses',
         });
       } else if (sku.lowOnLicenses) {
         findings.push({
@@ -222,7 +222,7 @@ function tenantFindings(s: Sections): Finding[] {
           area: 'licenses',
           issue: `${sku.skuPartNumber}: ${sku.available} of ${sku.enabled} licenses left`,
           detail: 'New hires cannot be licensed once this runs out.',
-          next: 'm365 entra licenses',
+          next: 'tenantctl entra licenses',
         });
       }
     }
@@ -236,7 +236,7 @@ function tenantFindings(s: Sections): Finding[] {
         area: 'app credentials',
         issue: `${expired.length} app secret/certificate${expired.length === 1 ? ' has' : 's have'} expired`,
         detail: `Apps: ${[...new Set(expired.map((c) => c.app))].slice(0, 5).join(', ')}. Integrations using them fail to authenticate (7000222).`,
-        next: 'm365 entra apps expiring',
+        next: 'tenantctl entra apps expiring',
       });
     }
     if (soon.length) {
@@ -245,7 +245,7 @@ function tenantFindings(s: Sections): Finding[] {
         area: 'app credentials',
         issue: `${soon.length} app secret/certificate${soon.length === 1 ? '' : 's'} expire within 30 days`,
         detail: `Soonest: ${soon[0]?.app} in ${soon[0]?.daysLeft} days.`,
-        next: 'm365 entra apps expiring',
+        next: 'tenantctl entra apps expiring',
       });
     }
   }
@@ -258,7 +258,7 @@ function tenantFindings(s: Sections): Finding[] {
         severity: total && bad / total > 0.1 ? 'medium' : 'low',
         area: 'devices',
         issue: `${bad} of ${total} devices are non-compliant or in error`,
-        next: 'm365 intune report noncompliant',
+        next: 'tenantctl intune report noncompliant',
       });
     }
   }
@@ -268,7 +268,7 @@ function tenantFindings(s: Sections): Finding[] {
       area: 'identity risk',
       issue: `${s.riskyUsers.count}${s.riskyUsers.truncated ? '+' : ''} user${s.riskyUsers.count === 1 ? ' is' : 's are'} at high risk`,
       detail: `e.g. ${s.riskyUsers.users.slice(0, 5).join(', ')}`,
-      next: 'm365 entra risky-users --level high --state atRisk',
+      next: 'tenantctl entra risky-users --level high --state atRisk',
     });
   }
   if (!isSettledError(s.incidents) && s.incidents.count) {
@@ -281,7 +281,7 @@ function tenantFindings(s: Sections): Finding[] {
         .filter(Boolean)
         .slice(0, 3)
         .join('; '),
-      next: 'm365 defender incidents list --status active --severity high',
+      next: 'tenantctl defender incidents list --status active --severity high',
     });
   }
   if (!isSettledError(s.secureScore) && s.secureScore && s.secureScore.percent < SECURE_SCORE_LOW_PERCENT) {
@@ -289,7 +289,7 @@ function tenantFindings(s: Sections): Finding[] {
       severity: 'low',
       area: 'security',
       issue: `Secure Score is ${s.secureScore.percent}%`,
-      next: 'm365 defender secure-score',
+      next: 'tenantctl defender secure-score',
     });
   }
   return findings;
@@ -306,7 +306,7 @@ export const commands: AnyCommand[] = [
       'admin check. Each area is checked in parallel and degrades independently; `unavailable` lists what could ' +
       'not be checked (e.g. risk needs Entra ID P2, incidents need Defender XDR). `findings` is ranked with the ' +
       'command to drill into each.',
-    examples: ['m365 troubleshoot tenant'],
+    examples: ['tenantctl troubleshoot tenant'],
     args: [],
     risk: 'read',
     permissions: permissionsOf(

@@ -294,8 +294,8 @@ export const commands: AnyCommand[] = [
     description:
       'Call records appear about 15 minutes to a few hours after a call ends and are kept 30 days. --user limits ' +
       'to calls that user took part in. Needs app-only auth (application permission CallRecords.Read.All); ' +
-      'delegated sign-in cannot read call records. Next: `m365 teams calls get <id>` for per-participant quality.',
-    examples: ['m365 teams calls list --user jane@contoso.com --days 2'],
+      'delegated sign-in cannot read call records. Next: `tenantctl teams calls get <id>` for per-participant quality.',
+    examples: ['tenantctl teams calls list --user jane@contoso.com --days 2'],
     args: [
       { name: 'days', type: 'number', default: 1, description: 'Calls that started in the last N days (max 30).' },
       { name: 'user', type: 'string', description: 'Only calls this user joined (UPN, email, name or id).' },
@@ -331,7 +331,7 @@ export const commands: AnyCommand[] = [
       'are the fraction of the call the client saw bad network; high `receivedQuality` or `delay` with ' +
       "connection wifi usually points at the user's Wi-Fi. `failures` lists setup/midcall failures. " +
       'Needs app-only auth (CallRecords.Read.All).',
-    examples: ['m365 teams calls get 2f1a6c87-...'],
+    examples: ['tenantctl teams calls get 2f1a6c87-...'],
     args: [
       {
         name: 'id',
@@ -355,7 +355,7 @@ export const commands: AnyCommand[] = [
       });
       if ('error' in parts.record) {
         throw new CliError('NOT_FOUND', `Call record ${args.id}: ${parts.record.error.message}`, {
-          hint: 'Find ids with `m365 teams calls list`; records are kept 30 days and need app-only auth.',
+          hint: 'Find ids with `tenantctl teams calls list`; records are kept 30 days and need app-only auth.',
         });
       }
       const record = parts.record;
@@ -395,7 +395,7 @@ export const commands: AnyCommand[] = [
     description:
       'Covers Microsoft Calling Plans and Operator Connect calls (not Direct Routing). Shows who called which ' +
       'number, duration in seconds and cost. Max range 90 days. Needs app-only auth (CallRecords.Read.All).',
-    examples: ['m365 teams calls pstn --days 7'],
+    examples: ['tenantctl teams calls pstn --days 7'],
     args: [
       { name: 'days', type: 'number', default: 7, description: 'Calls that started in the last N days (max 90).' },
       ...LIST_ARGS,
@@ -444,7 +444,7 @@ export const commands: AnyCommand[] = [
       'Teams. If the tenant conceals user details in reports (Microsoft 365 admin center > Settings > Org ' +
       'settings > Reports), names and UPNs are replaced by hashes and --user cannot match. Delegated callers ' +
       'need a reports role such as Reports Reader.',
-    examples: ['m365 teams activity --user jane@contoso.com', 'm365 teams activity --period D30 --top 20'],
+    examples: ['tenantctl teams activity --user jane@contoso.com', 'tenantctl teams activity --period D30 --top 20'],
     args: [
       { name: 'user', type: 'string', description: 'Only this user (UPN, email, name or id).' },
       {

@@ -184,7 +184,7 @@ function decodeLapsPassword(base64: string): string {
 function requireEntraId(device: ManagedDevice, what: string): string {
   if (!device.azureADDeviceId || /^0{8}-/.test(device.azureADDeviceId)) {
     throw new CliError('NOT_FOUND', `${device.deviceName ?? device.id} has no Entra device id, so it has no ${what}`, {
-      hint: 'Only Entra-joined or registered devices back up to Entra. Check `m365 intune devices get` for joinType.',
+      hint: 'Only Entra-joined or registered devices back up to Entra. Check `tenantctl intune devices get` for joinType.',
     });
   }
   return device.azureADDeviceId;
@@ -203,9 +203,9 @@ export const commands: AnyCommand[] = [
       'always applied client-side, so pair it with another filter in a large tenant. ' +
       'Next: `devices get` for detail, `devices compliance` for why a device is non-compliant.',
     examples: [
-      'm365 intune devices list --user jane@contoso.com',
-      'm365 intune devices list --os windows --compliance noncompliant',
-      'm365 intune devices list --stale-days 30 --all',
+      'tenantctl intune devices list --user jane@contoso.com',
+      'tenantctl intune devices list --os windows --compliance noncompliant',
+      'tenantctl intune devices list --stale-days 30 --all',
     ],
     args: [
       { name: 'user', type: 'string', description: 'Primary user (UPN, mail, name or id).' },
@@ -293,7 +293,7 @@ export const commands: AnyCommand[] = [
       'app installs. defender (Windows only) shows antivirus health as Intune last saw it; signatureUpdateOverdue ' +
       'or realTimeProtectionEnabled=false are red flags. autopilotEnrolled/joinType come from the beta API. ' +
       'Sections that fail (e.g. missing permission) appear as { error } without hiding the rest.',
-    examples: ['m365 intune devices get DESKTOP-4F2K9', 'm365 intune devices get 5CG1234XYZ'],
+    examples: ['tenantctl intune devices get DESKTOP-4F2K9', 'tenantctl intune devices get 5CG1234XYZ'],
     args: [DEVICE_ARG],
     risk: 'read',
     permissions: { delegated: [READ_DEVICES], application: [READ_DEVICES], roles: INTUNE_READ_ROLES },
@@ -372,7 +372,7 @@ export const commands: AnyCommand[] = [
       'current value or error. Failures of the built-in "Default Device Compliance Policy" (no check-in, user ' +
       'deleted, no policy assigned) carry a `reason`. If nothing fails but the device is not compliant, run ' +
       '`devices sync` and re-check after a few minutes.',
-    examples: ['m365 intune devices compliance DESKTOP-4F2K9'],
+    examples: ['tenantctl intune devices compliance DESKTOP-4F2K9'],
     args: [DEVICE_ARG],
     risk: 'read',
     permissions: {
@@ -398,7 +398,7 @@ export const commands: AnyCommand[] = [
       'profiles in error or conflict with their failing settings; a conflict means two profiles set the same ' +
       'setting to different values. Covers classic configuration profiles; settings catalog policies may not ' +
       'appear here.',
-    examples: ['m365 intune devices config-states DESKTOP-4F2K9'],
+    examples: ['tenantctl intune devices config-states DESKTOP-4F2K9'],
     args: [DEVICE_ARG],
     risk: 'read',
     permissions: {
@@ -439,7 +439,7 @@ export const commands: AnyCommand[] = [
       'Answers "what version of Chrome is on this laptop" or "is Zoom installed". This is the discovered-apps ' +
       'inventory the device last reported, not whether an Intune-assigned app installed successfully (use ' +
       '`apps status <app>` for that). Personal iOS/Android devices only report managed apps. (beta API)',
-    examples: ['m365 intune devices apps DESKTOP-4F2K9 --search chrome'],
+    examples: ['tenantctl intune devices apps DESKTOP-4F2K9 --search chrome'],
     args: [
       DEVICE_ARG,
       { name: 'search', type: 'string', description: 'Substring of the app name or publisher.' },
@@ -484,8 +484,8 @@ export const commands: AnyCommand[] = [
       'such as Cloud Device Administrator, Helpdesk Administrator or Intune Administrator. No keys usually means ' +
       'the device never backed up to Entra; rotate with `devices rotate-bitlocker`.',
     examples: [
-      'm365 intune devices bitlocker-key DESKTOP-4F2K9',
-      'm365 intune devices bitlocker-key DESKTOP-4F2K9 --reveal',
+      'tenantctl intune devices bitlocker-key DESKTOP-4F2K9',
+      'tenantctl intune devices bitlocker-key DESKTOP-4F2K9 --reveal',
     ],
     args: [DEVICE_ARG, REVEAL_ARG],
     risk: 'read',
@@ -544,7 +544,7 @@ export const commands: AnyCommand[] = [
       'logged in the Entra audit log. Needs DeviceLocalCredential.Read.All (ReadBasic.All is enough without ' +
       '--reveal) and, delegated, Cloud Device Administrator or Intune Administrator to reveal. Not found means ' +
       'Windows LAPS is not configured to back up to Entra for this device. Rotate with `devices rotate-laps`.',
-    examples: ['m365 intune devices laps DESKTOP-4F2K9 --reveal'],
+    examples: ['tenantctl intune devices laps DESKTOP-4F2K9 --reveal'],
     args: [DEVICE_ARG, REVEAL_ARG],
     risk: 'read',
     permissions: {
@@ -603,7 +603,7 @@ export const commands: AnyCommand[] = [
     description:
       'Use after any remote action to check progress. state: pending (device has not picked it up; it must be ' +
       'online), active, done, failed, notSupported. A wipe stays pending until the device next checks in.',
-    examples: ['m365 intune devices actions DESKTOP-4F2K9'],
+    examples: ['tenantctl intune devices actions DESKTOP-4F2K9'],
     args: [DEVICE_ARG],
     risk: 'read',
     permissions: { delegated: [READ_DEVICES], application: [READ_DEVICES], roles: INTUNE_READ_ROLES },

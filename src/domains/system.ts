@@ -123,7 +123,7 @@ function parseProfileValue(key: ProfileKey, raw: string): Profile[ProfileKey] {
 async function guardSetting(ctx: Context, key: ProfileKey, next: Profile[ProfileKey] | undefined): Promise<void> {
   if (key === 'confirmMode' && weakens(ctx.profile, next as Profile['confirmMode'])) {
     await ctx.requireApproval(
-      `m365 config set confirmMode ${String(next ?? 'auto')}\nProfile: ${ctx.profileName}\n\n` +
+      `tenantctl config set confirmMode ${String(next ?? 'auto')}\nProfile: ${ctx.profileName}\n\n` +
         `Lowers approval of destructive changes from "${effectiveConfirmMode(ctx.profile)}" to "${String(next)}".`,
     );
   }
@@ -134,7 +134,7 @@ async function guardSetting(ctx: Context, key: ProfileKey, next: Profile[Profile
     !ctx.profile.allowWrites
   ) {
     await ctx.requireApproval(
-      `m365 config set allowWrites true\nProfile: ${ctx.profileName}\n\nLets this CLI change the tenant.`,
+      `tenantctl config set allowWrites true\nProfile: ${ctx.profileName}\n\nLets this CLI change the tenant.`,
     );
   }
 }
@@ -167,7 +167,7 @@ export const commands: AnyCommand[] = [
       'By default it requests every read permission the CLI uses (plus write permissions when writes are ' +
       'enabled or --include-writes is passed). Without a profile it uses the Microsoft Graph Command Line Tools ' +
       'app, so no app registration is needed.',
-    examples: ['m365 auth login', 'm365 auth login --tenant contoso.onmicrosoft.com --include-writes'],
+    examples: ['tenantctl auth login', 'tenantctl auth login --tenant contoso.onmicrosoft.com --include-writes'],
     args: [
       {
         name: 'service',
@@ -201,7 +201,7 @@ export const commands: AnyCommand[] = [
       const auth = new Authenticator(ctx.profileName, profile, readSecrets());
       const service = args.service as Resource;
       if (service === 'graph' && auth.source === 'static-token') {
-        throw new CliError('USAGE', 'M365_ACCESS_TOKEN is set; unset it to sign in with a profile');
+        throw new CliError('USAGE', 'TENANTCTL_ACCESS_TOKEN is set; unset it to sign in with a profile');
       }
       const scopes =
         args.scopes ?? unionPermissions(tenantCommands(args.includeWrites || writesEnabled(profile)), 'delegated');
@@ -275,12 +275,12 @@ export const commands: AnyCommand[] = [
     name: 'init',
     summary: 'Create or update a profile (tenant, app registration, auth mode)',
     description:
-      'Delegated profiles need nothing else; `m365 auth login` works without this. App-only profiles need a ' +
+      'Delegated profiles need nothing else; `tenantctl auth login` works without this. App-only profiles need a ' +
       'tenant, the app registration client id, and either --cert (PEM with private key and certificate) or the ' +
-      'M365_CLIENT_SECRET environment variable. Secrets are never written to the config file.',
+      'TENANTCTL_CLIENT_SECRET environment variable. Secrets are never written to the config file.',
     examples: [
-      'm365 config init --mode app --tenant contoso.onmicrosoft.com --client-id 00000000-... --cert ~/certs/m365.pem',
-      'm365 --profile fabrikam config init --tenant fabrikam.onmicrosoft.com',
+      'tenantctl config init --mode app --tenant contoso.onmicrosoft.com --client-id 00000000-... --cert ~/certs/tenantctl.pem',
+      'tenantctl --profile fabrikam config init --tenant fabrikam.onmicrosoft.com',
     ],
     args: [
       { name: 'mode', type: 'string', choices: ['delegated', 'app'], description: 'Auth mode (default: delegated).' },
@@ -316,8 +316,8 @@ export const commands: AnyCommand[] = [
       }
       const next =
         mode === 'app'
-          ? 'Run `m365 auth login` to verify the credentials, then `m365 permissions --mode app` for what to grant.'
-          : 'Run `m365 auth login`.';
+          ? 'Run `tenantctl auth login` to verify the credentials, then `tenantctl permissions --mode app` for what to grant.'
+          : 'Run `tenantctl auth login`.';
       return {
         profile: ctx.profileName,
         saved: { ...profile, clientId: profile.clientId ?? `${DEFAULT_PUBLIC_CLIENT_ID} (default)` },
@@ -346,7 +346,7 @@ export const commands: AnyCommand[] = [
           clientSecretSet: Boolean(secrets.clientSecret),
           accessTokenSet: Boolean(secrets.accessToken),
           overrides: Object.keys(process.env).filter(
-            (key) => key.startsWith('M365_') && !/SECRET|TOKEN|PASSPHRASE/.test(key),
+            (key) => key.startsWith('TENANTCTL_') && !/SECRET|TOKEN|PASSPHRASE/.test(key),
           ),
         },
       };
@@ -356,7 +356,7 @@ export const commands: AnyCommand[] = [
     domain: 'config',
     name: 'set',
     summary: 'Set one profile setting',
-    examples: ['m365 config set allowWrites true', 'm365 config set tenantId contoso.onmicrosoft.com'],
+    examples: ['tenantctl config set allowWrites true', 'tenantctl config set tenantId contoso.onmicrosoft.com'],
     args: [
       {
         name: 'key',
@@ -454,10 +454,10 @@ export const commands: AnyCommand[] = [
         (c) => (!args.domain || c.domain === args.domain) && (include || c.risk === 'read'),
       );
       return {
-        usage: 'm365 <command> [--flag value ...] --output json',
+        usage: 'tenantctl <command> [--flag value ...] --output json',
         writesEnabled: writesEnabled(ctx.profile),
         confirmFlow:
-          'Destructive commands exit 3 with a preview and confirm.rerun; show the preview to the user and only re-run with --confirm after they approve.',
+          'Destructive commands ask the person in an OS dialog or terminal prompt and run only if they approve (exit 10 if not); tell the user what is about to change before running one. Exit 3 (confirmMode token only) returns a preview and confirm.rerun: show the preview and re-run only after the user approves.',
         commands: selected.map((c) => ({
           command: commandId(c),
           summary: c.summary,
@@ -477,7 +477,10 @@ export const commands: AnyCommand[] = [
     domain: 'permissions',
     name: '',
     summary: 'List the Graph permissions to grant the app registration (or consent to) for this CLI',
-    examples: ['m365 permissions --mode app', 'm365 permissions --mode delegated --include-writes --by-command'],
+    examples: [
+      'tenantctl permissions --mode app',
+      'tenantctl permissions --mode delegated --include-writes --by-command',
+    ],
     args: [
       {
         name: 'mode',
@@ -504,7 +507,7 @@ export const commands: AnyCommand[] = [
               exchangeOnline:
                 kind === 'application'
                   ? 'Office 365 Exchange Online: Exchange.ManageAsApp, plus the Exchange Administrator role on the app'
-                  : 'Exchange admin role; sign in with `m365 auth login --service exchange`',
+                  : 'Exchange admin role; sign in with `tenantctl auth login --service exchange`',
             }
           : {}),
         ...(defender.length ? { defenderForEndpoint: { api: 'WindowsDefenderATP', permissions: defender } } : {}),

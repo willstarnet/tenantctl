@@ -60,9 +60,9 @@ function ConvertTo-Plain($object, $properties) {
 }
 try { Import-Module ExchangeOnlineManagement -MinimumVersion 3.1.0 -ErrorAction Stop }
 catch { Out-Result @{ ok = $false; stage = 'module'; message = $_.Exception.Message }; exit 0 }
-$steps = @($env:M365_EXO_STEPS | ConvertFrom-Json -AsHashtable)
-$connect = @{ AccessToken = $env:M365_EXO_TOKEN; ShowBanner = $false; CommandName = @($steps | ForEach-Object { $_.cmdlet } | Select-Object -Unique) }
-if ($env:M365_EXO_ORG) { $connect.Organization = $env:M365_EXO_ORG } else { $connect.UserPrincipalName = $env:M365_EXO_UPN }
+$steps = @($env:TENANTCTL_EXO_STEPS | ConvertFrom-Json -AsHashtable)
+$connect = @{ AccessToken = $env:TENANTCTL_EXO_TOKEN; ShowBanner = $false; CommandName = @($steps | ForEach-Object { $_.cmdlet } | Select-Object -Unique) }
+if ($env:TENANTCTL_EXO_ORG) { $connect.Organization = $env:TENANTCTL_EXO_ORG } else { $connect.UserPrincipalName = $env:TENANTCTL_EXO_UPN }
 try { Connect-ExchangeOnline @connect | Out-Null }
 catch { Out-Result @{ ok = $false; stage = 'connect'; message = $_.Exception.Message }; exit 0 }
 $results = [System.Collections.ArrayList]::new()
@@ -92,12 +92,16 @@ interface ScriptOutput {
 }
 
 function pwshPath(): string {
-  const found = process.env.M365_PWSH || Bun.which('pwsh');
+  const found = process.env.TENANTCTL_PWSH || Bun.which('pwsh');
   if (!found) {
+    const install =
+      process.platform === 'darwin'
+        ? '`brew install powershell`'
+        : process.platform === 'win32'
+          ? '`winget install Microsoft.PowerShell`'
+          : "Microsoft's package repository (https://learn.microsoft.com/powershell/scripting/install/installing-powershell-on-linux)";
     throw new CliError('CONFIG', 'Exchange admin commands need PowerShell 7 (pwsh)', {
-      hint:
-        'Install PowerShell 7 (macOS: `brew install powershell`), then ' +
-        '`pwsh -c "Install-Module ExchangeOnlineManagement -Scope CurrentUser"`.',
+      hint: `Install PowerShell 7 with ${install}, then \`pwsh -c "Install-Module ExchangeOnlineManagement -Scope CurrentUser"\`.`,
     });
   }
   return found;
@@ -128,10 +132,10 @@ export function createExoRunner(connect: () => Promise<ExoConnection>, debug?: (
         stderr: 'pipe',
         env: {
           ...process.env,
-          M365_EXO_TOKEN: connection.token,
-          M365_EXO_ORG: connection.organization ?? '',
-          M365_EXO_UPN: connection.userPrincipalName ?? '',
-          M365_EXO_STEPS: JSON.stringify(steps),
+          TENANTCTL_EXO_TOKEN: connection.token,
+          TENANTCTL_EXO_ORG: connection.organization ?? '',
+          TENANTCTL_EXO_UPN: connection.userPrincipalName ?? '',
+          TENANTCTL_EXO_STEPS: JSON.stringify(steps),
         },
       });
       const timer = setTimeout(() => child.kill(), TIMEOUT_MS);
@@ -166,7 +170,7 @@ export function createExoRunner(connect: () => Promise<ExoConnection>, debug?: (
           `Connecting to Exchange Online failed: ${message}`,
           {
             hint:
-              'Delegated: run `m365 auth login --service exchange` with an Exchange admin account. App-only: the app ' +
+              'Delegated: run `tenantctl auth login --service exchange` with an Exchange admin account. App-only: the app ' +
               'needs the Exchange.ManageAsApp application permission (Office 365 Exchange Online) and an Exchange ' +
               'Administrator role assignment.',
           },

@@ -83,7 +83,7 @@ function syncFindings(device: ManagedDevice, name: string): Finding[] {
       area: 'sync',
       issue: `Has not checked in with Intune for ${days} days`,
       detail: 'Compliance and policies reflect the last check-in. The device must be on, online and signed in to sync.',
-      next: `m365 intune devices sync "${name}"`,
+      next: `tenantctl intune devices sync "${name}"`,
     },
   ];
 }
@@ -97,7 +97,9 @@ function complianceFindings(device: ManagedDevice, policies: PolicyStateView[], 
       area: 'compliance',
       issue: `Device is ${device.complianceState ?? 'not compliant'}`,
       detail: complianceSummary(device, policies),
-      next: failing.length ? `m365 intune devices compliance "${name}"` : `m365 intune devices sync "${name}"`,
+      next: failing.length
+        ? `tenantctl intune devices compliance "${name}"`
+        : `tenantctl intune devices sync "${name}"`,
     },
   ];
 }
@@ -132,7 +134,7 @@ function entraFindings(device: ManagedDevice, entra: EntraDevice | null | undefi
       area: 'entra',
       issue: 'Device is disabled in Entra ID',
       detail: 'Sign-ins from it fail with 135011.',
-      next: `m365 entra devices enable ${entra.id}`,
+      next: `tenantctl entra devices enable ${entra.id}`,
     });
   }
   if (device.complianceState === 'compliant' && entra.isCompliant === false) {
@@ -141,7 +143,7 @@ function entraFindings(device: ManagedDevice, entra: EntraDevice | null | undefi
       area: 'entra',
       issue: 'Intune says compliant but Entra ID still has it non-compliant',
       detail: 'The compliance result has not reached Entra ID yet; a sync usually resolves it.',
-      next: `m365 intune devices sync "${name}"`,
+      next: `tenantctl intune devices sync "${name}"`,
     });
   }
   return findings;
@@ -156,7 +158,7 @@ function hardwareFindings(device: ManagedDevice, detail: DeviceDetail | null, na
       area: 'security',
       issue: 'Disk is not encrypted',
       detail: 'Most compliance policies require BitLocker/FileVault.',
-      next: `m365 intune devices compliance "${name}"`,
+      next: `tenantctl intune devices compliance "${name}"`,
     });
   }
   if (detail?.jailBroken === 'True') {
@@ -178,7 +180,7 @@ function hardwareFindings(device: ManagedDevice, detail: DeviceDetail | null, na
       severity: ['wipe', 'retire', 'delete', 'fullScan'].includes(action.actionName ?? '') ? 'high' : 'info',
       area: 'actions',
       issue: `Remote action "${action.actionName}" is pending since ${action.startDateTime ?? 'unknown'}`,
-      next: `m365 intune devices actions "${name}"`,
+      next: `tenantctl intune devices actions "${name}"`,
     });
   }
   return findings;
@@ -193,7 +195,7 @@ function configFindings(policies: PolicyStateView[], name: string): Finding[] {
       area: 'configuration',
       issue: `${broken.length} configuration profile${broken.length === 1 ? '' : 's'} in error or conflict`,
       detail: broken.map((p) => `${p.policy} (${p.state})`).join(', '),
-      next: `m365 intune devices config-states "${name}"`,
+      next: `tenantctl intune devices config-states "${name}"`,
     },
   ];
 }
@@ -210,7 +212,7 @@ export const commands: AnyCommand[] = [
       'missing, compliance not yet reported), configuration profile errors, encryption, storage, pending remote ' +
       "actions, and the primary user's failed sign-ins from this device. `findings` is ranked, each with a next " +
       'command; `unavailable` lists what could not be checked.',
-    examples: ['m365 troubleshoot device LAPTOP-0042', 'm365 troubleshoot device C02XK1ABJHD5'],
+    examples: ['tenantctl troubleshoot device LAPTOP-0042', 'tenantctl troubleshoot device C02XK1ABJHD5'],
     args: [
       {
         name: 'device',
@@ -265,7 +267,7 @@ export const commands: AnyCommand[] = [
                 detail: [g.meaning, g.failedPolicies.length ? `Blocked by: ${g.failedPolicies.join('; ')}` : null]
                   .filter(Boolean)
                   .join(' '),
-                next: `m365 entra signin-error ${g.errorCode}`,
+                next: `tenantctl entra signin-error ${g.errorCode}`,
               }))),
       ]);
       const missing = unavailable(sections);

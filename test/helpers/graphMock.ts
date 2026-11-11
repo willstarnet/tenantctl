@@ -149,7 +149,7 @@ export function mockContext(
 
 /** Fresh, empty config directory for tests that touch config, confirm keys or the audit log. */
 export function tempConfigDir(): string {
-  return mkdtempSync(join(tmpdir(), 'm365-test-'));
+  return mkdtempSync(join(tmpdir(), 'tenantctl-test-'));
 }
 
 /** Collection response body. */
@@ -173,6 +173,7 @@ export async function runCommand(
     exo?: ExoRunner;
     /** Human approval answer for destructive commands (default: approved). */
     approve?: boolean;
+    /** Defaults to confirmMode `token` (two-step) so results don't depend on the machine having a desktop. */
     profile?: Partial<Profile>;
   } = {},
 ): Promise<{ outcome: Outcome; calls: MockRequest[] }> {
@@ -188,6 +189,7 @@ export async function runCommand(
         authMode: 'delegated',
         tenantId: 'tenant-test',
         allowWrites: options.allowWrites ?? false,
+        confirmMode: 'token',
         ...options.profile,
       },
       fetch: mock.fetch,

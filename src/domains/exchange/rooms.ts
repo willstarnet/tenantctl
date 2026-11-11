@@ -86,8 +86,8 @@ export const commands: AnyCommand[] = [
     summary: 'List meeting rooms with building, floor and capacity',
     description:
       'Rooms come from Places (room mailboxes with location metadata set in Exchange). A room missing here has no ' +
-      'Places entry; its mailbox still exists (`m365 exchange mailbox details <room>`).',
-    examples: ['m365 exchange rooms list --building "HQ" --capacity 8'],
+      'Places entry; its mailbox still exists (`tenantctl exchange mailbox details <room>`).',
+    examples: ['tenantctl exchange rooms list --building "HQ" --capacity 8'],
     args: [...FILTER_ARGS, ...LIST_ARGS],
     risk: 'read',
     permissions: { delegated: ['Place.Read.All'], application: ['Place.Read.All'] },
@@ -109,7 +109,7 @@ export const commands: AnyCommand[] = [
       'Reads free/busy (getSchedule) for every matching room and returns those with nothing but free time in ' +
       '[start, end). `busy` lists rooms with tentative/busy/oof items; `unknown` lists rooms whose availability ' +
       'could not be read. Times without an offset are UTC.',
-    examples: ['m365 exchange rooms free --start 2026-11-12T14:00:00Z --end 2026-11-12T15:00:00Z --capacity 6'],
+    examples: ['tenantctl exchange rooms free --start 2026-11-12T14:00:00Z --end 2026-11-12T15:00:00Z --capacity 6'],
     args: [
       { name: 'start', type: 'string', required: true, description: 'Window start, ISO date-time.' },
       { name: 'end', type: 'string', required: true, description: 'Window end, ISO date-time.' },

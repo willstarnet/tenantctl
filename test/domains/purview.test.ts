@@ -133,7 +133,7 @@ describe('audit search', () => {
     );
     expect(outcome).toEqual({
       kind: 'result',
-      result: { queryId: QUERY_ID, status: 'running', next: `m365 purview audit results ${QUERY_ID}` },
+      result: { queryId: QUERY_ID, status: 'running', next: `tenantctl purview audit results ${QUERY_ID}` },
     });
   });
 

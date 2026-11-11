@@ -32,10 +32,10 @@ function rawWrite(method: 'POST' | 'PATCH' | 'PUT' | 'DELETE'): AnyCommand {
     name: method.toLowerCase(),
     summary: `Raw ${method} to any Graph path`,
     description:
-      'Escape hatch for operations no dedicated command covers. Always treated as destructive: it previews, ' +
-      'then needs --confirm. Prefer a dedicated command when one exists.',
+      'Escape hatch for operations no dedicated command covers. Always treated as destructive: it shows the ' +
+      'request for approval before sending it. Prefer a dedicated command when one exists.',
     examples: [
-      `m365 graph ${method.toLowerCase()} /users/jane@contoso.com${withBody ? ` --body '{"jobTitle":"Manager"}'` : ''}`,
+      `tenantctl graph ${method.toLowerCase()} /users/jane@contoso.com${withBody ? ` --body '{"jobTitle":"Manager"}'` : ''}`,
     ],
     args: [PATH_ARG, { name: 'body', type: 'string', description: 'JSON request body.' }, VERSION_ARG],
     risk: 'destructive',
@@ -66,8 +66,8 @@ export const commands: AnyCommand[] = [
       'Use when no dedicated command covers what you need. Results come back unshaped. Needs whatever ' +
       'permission the endpoint documents.',
     examples: [
-      'm365 graph get "/users?$filter=department eq \'Sales\'&$select=displayName,mail"',
-      'm365 graph get /deviceManagement/managedDevices --beta --top 5',
+      'tenantctl graph get "/users?$filter=department eq \'Sales\'&$select=displayName,mail"',
+      'tenantctl graph get /deviceManagement/managedDevices --beta --top 5',
     ],
     args: [PATH_ARG, VERSION_ARG, ADVANCED_ARG, ...LIST_ARGS],
     risk: 'read',

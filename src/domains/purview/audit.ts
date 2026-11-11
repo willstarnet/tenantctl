@@ -99,7 +99,7 @@ export function auditQueryBody(filters: AuditFilters): Record<string, unknown> {
   const list = (values: string[] | undefined) => (values?.length ? values : undefined);
   return compact({
     '@odata.type': '#microsoft.graph.security.auditLogQuery',
-    displayName: filters.displayName ?? `m365 audit ${new Date().toISOString()}`,
+    displayName: filters.displayName ?? `tenantctl audit ${new Date().toISOString()}`,
     filterStartDateTime: filters.start,
     filterEndDateTime: filters.end,
     recordTypeFilters: list(filters.recordTypes),
@@ -112,7 +112,7 @@ export function auditQueryBody(filters: AuditFilters): Record<string, unknown> {
 }
 
 export function resultsCommand(queryId: string): string {
-  return `m365 purview audit results ${queryId}`;
+  return `tenantctl purview audit results ${queryId}`;
 }
 
 async function fetchRecords(ctx: Context, queryId: string, limit: number): Promise<ListResult<AuditRecord>> {
@@ -346,9 +346,9 @@ export const commands: AnyCommand[] = [
       '(free text inside the workload-specific audit data, not operation names). ' +
       `${AUDIT_NOTE} ${SEARCH_SUMMARY_NOTE} Presets: \`audit file-deleted\`, \`audit mailbox-access\`, \`audit admin-changes\`.`,
     examples: [
-      'm365 purview audit search --user jane@contoso.com --days 2',
-      'm365 purview audit search --operation FileDeleted --object "https://contoso.sharepoint.com/sites/finance/Shared Documents/Q1.xlsx"',
-      'm365 purview audit search --operation Set-Mailbox,Add-MailboxPermission --days 30',
+      'tenantctl purview audit search --user jane@contoso.com --days 2',
+      'tenantctl purview audit search --operation FileDeleted --object "https://contoso.sharepoint.com/sites/finance/Shared Documents/Q1.xlsx"',
+      'tenantctl purview audit search --operation Set-Mailbox,Add-MailboxPermission --days 30',
     ],
     args: [
       { name: 'user', type: 'string[]', description: 'UPN(s) of the person who performed the activity.' },
@@ -397,7 +397,7 @@ export const commands: AnyCommand[] = [
     description:
       'Use the queryId returned when `audit search` (or a preset) outlived its wait, or one listed by `audit ' +
       `queries\`. Waits up to --wait-seconds if it is still running (0 = just check). ${SEARCH_SUMMARY_NOTE}`,
-    examples: ['m365 purview audit results 168ec429-084b-a489-90d8-504a87846305'],
+    examples: ['tenantctl purview audit results 168ec429-084b-a489-90d8-504a87846305'],
     args: [
       { name: 'queryId', type: 'string', required: true, positional: true, description: 'Audit query id.' },
       { ...WAIT_ARG, default: 0 },
@@ -416,7 +416,7 @@ export const commands: AnyCommand[] = [
     description:
       'Lists audit log queries created in this tenant (by anyone using the API), so an earlier search can be ' +
       're-read with `audit results <queryId>` instead of re-running it.',
-    examples: ['m365 purview audit queries'],
+    examples: ['tenantctl purview audit queries'],
     args: [...LIST_ARGS],
     risk: 'read',
     permissions: AUDIT_ALL,
@@ -455,8 +455,8 @@ export const commands: AnyCommand[] = [
       'result is exact. FirstStageRecycleBin = emptied from the site recycle bin; SecondStage = purged from the ' +
       `site collection recycle bin (unrecoverable after that). ${AUDIT_NOTE}`,
     examples: [
-      'm365 purview audit file-deleted --site https://contoso.sharepoint.com/sites/finance --file Q1.xlsx',
-      'm365 purview audit file-deleted --site https://contoso-my.sharepoint.com/personal/jane_contoso_com --days 30',
+      'tenantctl purview audit file-deleted --site https://contoso.sharepoint.com/sites/finance --file Q1.xlsx',
+      'tenantctl purview audit file-deleted --site https://contoso-my.sharepoint.com/personal/jane_contoso_com --days 30',
     ],
     args: [
       { name: 'site', type: 'string', required: true, description: 'Site or OneDrive URL, or site name.' },
@@ -483,7 +483,7 @@ export const commands: AnyCommand[] = [
           operations: FILE_DELETED_OPERATIONS,
           users: args.user,
           keyword: args.file ?? site.webUrl,
-          displayName: `m365 file-deleted ${site.webUrl}`,
+          displayName: `tenantctl file-deleted ${site.webUrl}`,
         },
         args.waitSeconds,
         { limit: listLimit(args) },
@@ -508,8 +508,8 @@ export const commands: AnyCommand[] = [
       'owner, delegate or admin; MailItemsAccessed accessType is Bind (one item opened) or Sync (folder synced ' +
       `by a client). ${AUDIT_NOTE}`,
     examples: [
-      'm365 purview audit mailbox-access ceo@contoso.com --non-owner --days 14',
-      'm365 purview audit mailbox-access shared-finance@contoso.com --accessed-by bob@contoso.com',
+      'tenantctl purview audit mailbox-access ceo@contoso.com --non-owner --days 14',
+      'tenantctl purview audit mailbox-access shared-finance@contoso.com --accessed-by bob@contoso.com',
     ],
     args: [
       {
@@ -541,7 +541,7 @@ export const commands: AnyCommand[] = [
           operations: MAILBOX_ACCESS_OPERATIONS,
           users: args.accessedBy,
           keyword: owner.userPrincipalName,
-          displayName: `m365 mailbox-access ${owner.userPrincipalName}`,
+          displayName: `tenantctl mailbox-access ${owner.userPrincipalName}`,
         },
         args.waitSeconds,
         { limit: listLimit(args) },
@@ -562,8 +562,8 @@ export const commands: AnyCommand[] = [
       'and Entra changes (users, groups, roles, apps). Answers "who changed this", "what did this admin do". ' +
       `Use --operation to narrow to specific cmdlets/activities. ${AUDIT_NOTE}`,
     examples: [
-      'm365 purview audit admin-changes --days 3',
-      'm365 purview audit admin-changes --user admin@contoso.com --operation Set-Mailbox',
+      'tenantctl purview audit admin-changes --days 3',
+      'tenantctl purview audit admin-changes --user admin@contoso.com --operation Set-Mailbox',
     ],
     args: [
       { name: 'user', type: 'string[]', description: 'Only changes by these admin UPN(s).' },
@@ -586,7 +586,7 @@ export const commands: AnyCommand[] = [
           recordTypes: ADMIN_CHANGE_RECORD_TYPES,
           users: args.user,
           operations: args.operation,
-          displayName: 'm365 admin-changes',
+          displayName: 'tenantctl admin-changes',
         },
         args.waitSeconds,
         { limit: listLimit(args) },

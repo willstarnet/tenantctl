@@ -9,7 +9,7 @@ import { join } from 'node:path';
  */
 const seen: { method: string; path: string; auth: string | null }[] = [];
 let server: Bun.Server<undefined>;
-const configDir = mkdtempSync(join(tmpdir(), 'm365-e2e-'));
+const configDir = mkdtempSync(join(tmpdir(), 'tenantctl-e2e-'));
 // The agent-replayable token flow is what this file exercises; human approval (tty/dialog) is unit-tested.
 writeFileSync(
   join(configDir, 'config.json'),
@@ -52,9 +52,9 @@ async function cli(args: string[], env: Record<string, string> = {}) {
     env: {
       PATH: process.env.PATH ?? '',
       HOME: configDir,
-      M365_CONFIG_DIR: configDir,
-      M365_ACCESS_TOKEN: 'e2e-token',
-      M365_GRAPH_URL: `http://127.0.0.1:${server.port}`,
+      TENANTCTL_CONFIG_DIR: configDir,
+      TENANTCTL_ACCESS_TOKEN: 'e2e-token',
+      TENANTCTL_GRAPH_URL: `http://127.0.0.1:${server.port}`,
       ...env,
     },
     stdout: 'pipe',
@@ -68,7 +68,7 @@ async function cli(args: string[], env: Record<string, string> = {}) {
   return { stdout, stderr, code };
 }
 
-describe('m365 CLI end to end', () => {
+describe('tenantctl CLI end to end', () => {
   test('JSON envelope with paging, field projection and bearer token', async () => {
     const { stdout, code } = await cli(['graph', 'get', '/users', '--top', '3', '--fields', 'displayName', '--json']);
     expect(code).toBe(0);
@@ -97,7 +97,7 @@ describe('m365 CLI end to end', () => {
     expect(refused.code).toBe(7);
     expect(seen.some((r) => r.method === 'DELETE')).toBe(false);
 
-    const preview = await cli(['graph', 'delete', '/groups/g1', '--json'], { M365_ALLOW_WRITES: '1' });
+    const preview = await cli(['graph', 'delete', '/groups/g1', '--json'], { TENANTCTL_ALLOW_WRITES: '1' });
     expect(preview.code).toBe(3);
     const payload = JSON.parse(preview.stdout);
     expect(payload.preview).toEqual({
@@ -105,11 +105,11 @@ describe('m365 CLI end to end', () => {
       url: `http://127.0.0.1:${server.port}/v1.0/groups/g1`,
       body: null,
     });
-    expect(payload.confirm.rerun).toBe(`m365 graph delete /groups/g1 --json --confirm ${payload.confirm.token}`);
+    expect(payload.confirm.rerun).toBe(`tenantctl graph delete /groups/g1 --json --confirm ${payload.confirm.token}`);
     expect(seen.some((r) => r.method === 'DELETE')).toBe(false);
 
     const done = await cli(['graph', 'delete', '/groups/g1', '--json', '--confirm', payload.confirm.token], {
-      M365_ALLOW_WRITES: '1',
+      TENANTCTL_ALLOW_WRITES: '1',
     });
     expect(done.code).toBe(0);
     expect(seen.filter((r) => r.method === 'DELETE').map((r) => r.path)).toEqual(['/v1.0/groups/g1']);

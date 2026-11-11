@@ -1,28 +1,28 @@
-# Microsoft Purview (`m365 purview`)
+# Microsoft Purview (`tenantctl purview`)
 
-`m365 purview ...` searches the unified audit log (who did what, across Exchange, SharePoint/OneDrive, Entra,
+`tenantctl purview ...` searches the unified audit log (who did what, across Exchange, SharePoint/OneDrive, Entra,
 Teams and more) through the Graph Audit Search API, and manages eDiscovery (Premium) cases, custodians and holds
 through Graph v1.0 `/security/cases/ediscoveryCases`.
 
 ## Common tasks
 
-| Admin intent                                               | Command                                                                                                       |
-| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| Who deleted this file / what was deleted on this site      | `m365 purview audit file-deleted --site https://contoso.sharepoint.com/sites/finance --file Q1.xlsx`          |
-| What was deleted in Bob's OneDrive this month              | `m365 purview audit file-deleted --site https://contoso-my.sharepoint.com/personal/bob_contoso_com --days 30` |
-| Who has been reading the CEO's mailbox (not the CEO)       | `m365 purview audit mailbox-access ceo@contoso.com --non-owner --days 14`                                     |
-| What did Bob do in someone else's mailbox                  | `m365 purview audit mailbox-access shared@contoso.com --accessed-by bob@contoso.com`                          |
-| Who changed this mailbox / what did this admin change      | `m365 purview audit admin-changes --user admin@contoso.com` / `... --operation Set-Mailbox`                   |
-| What did Jane do in the last two days (any service)        | `m365 purview audit search --user jane@contoso.com --days 2`                                                  |
-| Activity from a suspicious IP                              | `m365 purview audit search --ip 203.0.113.5 --days 30`                                                        |
-| Specific operations in a date range                        | `m365 purview audit search --operation FileDownloaded,FileAccessed --start 2026-11-01 --end 2026-11-05`       |
-| A search outlived its wait; get the records later          | `m365 purview audit results <queryId>`                                                                        |
-| Which audit searches exist / are still running             | `m365 purview audit queries`                                                                                  |
-| List eDiscovery cases                                      | `m365 purview ediscovery list`                                                                                |
-| Open a case for an investigation                           | `m365 purview ediscovery create --name "HR-2026-014" --description "Departure review"`                        |
-| Preserve a departing/suspected user's mailbox and OneDrive | `m365 purview ediscovery hold "HR-2026-014" bob@contoso.com`                                                  |
-| Is the hold applied yet / who is held in this case         | `m365 purview ediscovery custodians "HR-2026-014"`                                                            |
-| Lift the hold on one person                                | `m365 purview ediscovery release "HR-2026-014" bob@contoso.com`                                               |
+| Admin intent                                               | Command                                                                                                            |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| Who deleted this file / what was deleted on this site      | `tenantctl purview audit file-deleted --site https://contoso.sharepoint.com/sites/finance --file Q1.xlsx`          |
+| What was deleted in Bob's OneDrive this month              | `tenantctl purview audit file-deleted --site https://contoso-my.sharepoint.com/personal/bob_contoso_com --days 30` |
+| Who has been reading the CEO's mailbox (not the CEO)       | `tenantctl purview audit mailbox-access ceo@contoso.com --non-owner --days 14`                                     |
+| What did Bob do in someone else's mailbox                  | `tenantctl purview audit mailbox-access shared@contoso.com --accessed-by bob@contoso.com`                          |
+| Who changed this mailbox / what did this admin change      | `tenantctl purview audit admin-changes --user admin@contoso.com` / `... --operation Set-Mailbox`                   |
+| What did Jane do in the last two days (any service)        | `tenantctl purview audit search --user jane@contoso.com --days 2`                                                  |
+| Activity from a suspicious IP                              | `tenantctl purview audit search --ip 203.0.113.5 --days 30`                                                        |
+| Specific operations in a date range                        | `tenantctl purview audit search --operation FileDownloaded,FileAccessed --start 2026-11-01 --end 2026-11-05`       |
+| A search outlived its wait; get the records later          | `tenantctl purview audit results <queryId>`                                                                        |
+| Which audit searches exist / are still running             | `tenantctl purview audit queries`                                                                                  |
+| List eDiscovery cases                                      | `tenantctl purview ediscovery list`                                                                                |
+| Open a case for an investigation                           | `tenantctl purview ediscovery create --name "HR-2026-014" --description "Departure review"`                        |
+| Preserve a departing/suspected user's mailbox and OneDrive | `tenantctl purview ediscovery hold "HR-2026-014" bob@contoso.com`                                                  |
+| Is the hold applied yet / who is held in this case         | `tenantctl purview ediscovery custodians "HR-2026-014"`                                                            |
+| Lift the hold on one person                                | `tenantctl purview ediscovery release "HR-2026-014" bob@contoso.com`                                               |
 
 ## Reading the output
 

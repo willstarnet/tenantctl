@@ -345,8 +345,8 @@ async function planUnassign(ctx: Context, subject: Subject, args: Args): Promise
     throw new CliError('NOT_FOUND', `${describeSubject(subject)} is not assigned to ${describeTarget(target)}`, {
       hint:
         subject.kind === 'app'
-          ? `List its assignments with \`m365 intune apps assignments ${subject.id}\`.`
-          : `Check what targets the group with \`m365 intune assignments ${target.group?.id ?? '<group>'}\`.`,
+          ? `List its assignments with \`tenantctl intune apps assignments ${subject.id}\`.`
+          : `Check what targets the group with \`tenantctl intune assignments ${target.group?.id ?? '<group>'}\`.`,
     });
   }
   const next = current.filter((a) => !matches(a)).map((a) => clean(spec, a));
@@ -427,7 +427,7 @@ const AREAS: AreaSpec[] = [
     ref: 'App name or id.',
     resolve: resolveApp,
     permission: WRITE_APPS,
-    next: (s) => `m365 intune apps status ${quoted(s.name)}`,
+    next: (s) => `tenantctl intune apps status ${quoted(s.name)}`,
     description:
       'intent required installs the app on targeted devices/users, available offers it in Company Portal ' +
       '(users only: refused with --all-devices, and Intune ignores available for device groups), uninstall ' +
@@ -435,10 +435,10 @@ const AREAS: AreaSpec[] = [
       '(delivery optimisation, notifications) take Intune defaults; adjust them in the admin center.',
     examples: {
       assign: [
-        'm365 intune apps assign "Zoom Workplace" --intent required --group "Sales Laptops"',
-        'm365 intune apps assign "Company Portal" --intent available --all-users --exclude "Kiosk Users"',
+        'tenantctl intune apps assign "Zoom Workplace" --intent required --group "Sales Laptops"',
+        'tenantctl intune apps assign "Company Portal" --intent available --all-users --exclude "Kiosk Users"',
       ],
-      unassign: ['m365 intune apps unassign "Zoom Workplace" --group "Sales Laptops"'],
+      unassign: ['tenantctl intune apps unassign "Zoom Workplace" --group "Sales Laptops"'],
     },
   },
   {
@@ -447,13 +447,13 @@ const AREAS: AreaSpec[] = [
     ref: 'Compliance policy name or id.',
     resolve: resolveCompliance,
     permission: WRITE_CONFIG,
-    next: (s) => `m365 intune compliance status ${quoted(s.name)}`,
+    next: (s) => `tenantctl intune compliance status ${quoted(s.name)}`,
     description:
       'Newly targeted devices are evaluated at their next check-in; non-compliant ones can lose access through ' +
       'Conditional Access after the grace period.',
     examples: {
-      assign: ['m365 intune compliance assign "Windows baseline" --group "All Windows" --exclude "Kiosks"'],
-      unassign: ['m365 intune compliance unassign "Windows baseline" --exclude "Kiosks"'],
+      assign: ['tenantctl intune compliance assign "Windows baseline" --group "All Windows" --exclude "Kiosks"'],
+      unassign: ['tenantctl intune compliance unassign "Windows baseline" --exclude "Kiosks"'],
     },
   },
   {
@@ -463,13 +463,13 @@ const AREAS: AreaSpec[] = [
     resolve: resolveProfile,
     permission: WRITE_CONFIG,
     next: (s) =>
-      s.kind === 'config' ? `m365 intune config status ${quoted(s.name)}` : `m365 intune assignments <group>`,
+      s.kind === 'config' ? `tenantctl intune config status ${quoted(s.name)}` : `tenantctl intune assignments <group>`,
     description:
       'Works for classic profiles (v1.0 deviceConfigurations) and settings catalog / endpoint security policies ' +
       '(beta configurationPolicies; Microsoft has not published a v1.0 equivalent).',
     examples: {
-      assign: ['m365 intune config assign "Corporate Wi-Fi" --group "Sales Laptops"'],
-      unassign: ['m365 intune config unassign "Edge settings" --all-devices'],
+      assign: ['tenantctl intune config assign "Corporate Wi-Fi" --group "Sales Laptops"'],
+      unassign: ['tenantctl intune config unassign "Edge settings" --all-devices'],
     },
   },
 ];
@@ -608,7 +608,7 @@ export const commands: AnyCommand[] = [
       'Use before changing an app deployment or to answer "who gets Zoom?". target is group, exclude, allUsers ' +
       'or allDevices; intent is required, available, uninstall or availableWithoutEnrollment. filterType shows ' +
       'an assignment filter (include/exclude) when one is set.',
-    examples: ['m365 intune apps assignments "Zoom Workplace"'],
+    examples: ['tenantctl intune apps assignments "Zoom Workplace"'],
     args: [{ name: 'app', type: 'string', required: true, positional: true, description: 'App name or id.' }],
     risk: 'read',
     permissions: {
@@ -635,7 +635,10 @@ export const commands: AnyCommand[] = [
       'included = targets this group or a group it is nested in (via names the parent); excluded = this group ' +
       'is excluded; allUsers/allDevices = applies to everyone regardless of group. --max-items caps how many ' +
       'apps/policies are scanned (truncated=true when hit). Sections Graph refused are listed in unavailable.',
-    examples: ['m365 intune assignments "Sales Laptops"', 'm365 intune assignments "All Staff" --max-items 2000'],
+    examples: [
+      'tenantctl intune assignments "Sales Laptops"',
+      'tenantctl intune assignments "All Staff" --max-items 2000',
+    ],
     args: [
       { name: 'group', type: 'string', required: true, positional: true, description: 'Group name, mail or id.' },
       {

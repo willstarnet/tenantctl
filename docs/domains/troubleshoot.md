@@ -10,15 +10,15 @@ One command per support question. Each one reads several areas at the same time 
 - The raw sections the findings were built from, for follow-up questions.
 
 All troubleshoot commands only read. Fixes are the `next` commands, which go through the normal write gate and
-the confirm step.
+the approval step.
 
-| Question                                                        | Command                                                                          |
-| --------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| "Jane can't sign in / get email / use Teams"                    | `m365 troubleshoot user jane@contoso.com`                                        |
-| "Why exactly is her sign-in failing?"                           | `m365 troubleshoot signin jane@contoso.com [--app "Microsoft Teams"] [--days 2]` |
-| "My laptop says it isn't compliant" / "is this device healthy?" | `m365 troubleshoot device LAPTOP-0042` (name, serial or id)                      |
-| "I never got the email from the vendor"                         | `m365 troubleshoot mail jane@contoso.com --sender billing@vendor.com`            |
-| "Is something wrong with Microsoft 365?" / weekly check         | `m365 troubleshoot tenant`                                                       |
+| Question                                                        | Command                                                                               |
+| --------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| "Jane can't sign in / get email / use Teams"                    | `tenantctl troubleshoot user jane@contoso.com`                                        |
+| "Why exactly is her sign-in failing?"                           | `tenantctl troubleshoot signin jane@contoso.com [--app "Microsoft Teams"] [--days 2]` |
+| "My laptop says it isn't compliant" / "is this device healthy?" | `tenantctl troubleshoot device LAPTOP-0042` (name, serial or id)                      |
+| "I never got the email from the vendor"                         | `tenantctl troubleshoot mail jane@contoso.com --sender billing@vendor.com`            |
+| "Is something wrong with Microsoft 365?" / weekly check         | `tenantctl troubleshoot tenant`                                                       |
 
 ## What each command checks
 
@@ -69,10 +69,10 @@ the confirm step.
 
 ## Prerequisites
 
-Each section needs what its underlying command needs. `m365 troubleshoot <cmd> --help` lists the union. If a
+Each section needs what its underlying command needs. `tenantctl troubleshoot <cmd> --help` lists the union. If a
 section is missing, the report says so in `unavailable` instead of failing:
 
 - **Sign-in logs:** Entra ID P1. **Risk:** Entra ID P2. **Incidents:** Microsoft Defender XDR.
 - **Another user's mailbox** (inbox rules, auto-reply): app-only auth. A delegated admin sign-in only reaches
   their own mailbox.
-- **Message trace:** the one-time message-trace service principal (see `m365 exchange trace --help`).
+- **Message trace:** the one-time message-trace service principal (see `tenantctl exchange trace --help`).

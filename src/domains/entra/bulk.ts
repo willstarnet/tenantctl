@@ -90,7 +90,7 @@ async function planInvite(ctx: Context, args: { email: string; redirectUrl: stri
       'USAGE',
       `${domain} is one of this tenant's verified domains, so ${email} is an internal user, not a guest`,
       {
-        hint: `Find them with \`m365 entra users get ${email}\`, or create a member account with \`m365 entra users create --upn ${email} --display-name "..."\`.`,
+        hint: `Find them with \`tenantctl entra users get ${email}\`, or create a member account with \`tenantctl entra users create --upn ${email} --display-name "..."\`.`,
       },
     );
   }
@@ -110,8 +110,8 @@ const inviteCommands: AnyCommand[] = [
       'the guest to a security or Microsoft 365 group; if that fails the guest still exists and the result says so. ' +
       'Fails when external collaboration settings block the domain or restrict who can invite.',
     examples: [
-      'm365 entra users invite partner@fabrikam.com --name "Pat Partner" --group "Project X Guests"',
-      'm365 entra users invite contractor@example.org --no-email',
+      'tenantctl entra users invite partner@fabrikam.com --name "Pat Partner" --group "Project X Guests"',
+      'tenantctl entra users invite contractor@example.org --no-email',
     ],
     args: [
       { name: 'email', type: 'string', required: true, positional: true, description: "Guest's email address." },
@@ -168,7 +168,7 @@ const inviteCommands: AnyCommand[] = [
                   displayName: group.displayName,
                   status: 'failed',
                   error: errorText(error),
-                  hint: `Guest created; retry with \`m365 entra groups add-member "${group.displayName}" ${userId}\`.`,
+                  hint: `Guest created; retry with \`tenantctl entra groups add-member "${group.displayName}" ${userId}\`.`,
                 },
         );
       }
@@ -380,8 +380,8 @@ const bulkUserCommands: AnyCommand[] = [
       '(passwords from the file are never echoed); users must change them at first sign-in. A row whose manager, ' +
       'license or group step fails is still created and lists followUpErrors.',
     examples: [
-      'm365 --dry-run entra users bulk-create new-starters.csv',
-      'm365 entra users bulk-create new-starters.csv',
+      'tenantctl --dry-run entra users bulk-create new-starters.csv',
+      'tenantctl entra users bulk-create new-starters.csv',
     ],
     args: [{ name: 'file', type: 'string', required: true, positional: true, description: 'Path to the CSV file.' }],
     risk: 'write',
@@ -606,8 +606,8 @@ const bulkGroupCommands: AnyCommand[] = [
       'Run with --dry-run first to see unresolved rows. Distribution and mail-enabled security groups are managed ' +
       'in Exchange Online. Max 500 rows.',
     examples: [
-      'm365 --dry-run entra groups add-members "Finance Team" --from-csv finance.csv',
-      'm365 entra groups add-members "Project X" --from-csv people.csv --column Email',
+      'tenantctl --dry-run entra groups add-members "Finance Team" --from-csv finance.csv',
+      'tenantctl entra groups add-members "Project X" --from-csv people.csv --column Email',
     ],
     args: [
       {

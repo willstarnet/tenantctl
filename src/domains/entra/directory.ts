@@ -211,8 +211,8 @@ const groupCommands: AnyCommand[] = [
       'Use to find a group or survey groups of one kind. `type` is derived: m365 (Microsoft 365 group), security, ' +
       'distribution, mail-security (mail-enabled security; members managed in Exchange). `membership` is ' +
       'dynamic or assigned; dynamic groups show their rule. `isTeam` means the group backs a Microsoft Team. ' +
-      '`syncedFromOnPrem` groups must be changed in on-premises AD. Next: `m365 entra groups get <group>`.',
-    examples: ['m365 entra groups list --search finance', 'm365 entra groups list --type dynamic --all'],
+      '`syncedFromOnPrem` groups must be changed in on-premises AD. Next: `tenantctl entra groups get <group>`.',
+    examples: ['tenantctl entra groups list --search finance', 'tenantctl entra groups list --type dynamic --all'],
     args: [
       { name: 'search', type: 'string', description: 'Words in the display name.' },
       {
@@ -248,8 +248,8 @@ const groupCommands: AnyCommand[] = [
     description:
       'Use to explain what a group is and what it grants. `licenses` lists SKUs assigned through group-based ' +
       'licensing (Entra ID P1). For dynamic groups, `membershipRuleProcessingState` Paused means membership is ' +
-      'frozen. `memberCount` counts direct members. Next: `m365 entra groups members <group>`.',
-    examples: ['m365 entra groups get "Finance Team"', 'm365 entra groups get sales@contoso.com'],
+      'frozen. `memberCount` counts direct members. Next: `tenantctl entra groups members <group>`.',
+    examples: ['tenantctl entra groups get "Finance Team"', 'tenantctl entra groups get sales@contoso.com'],
     args: [groupArg],
     risk: 'read',
     permissions: {
@@ -312,8 +312,8 @@ const groupCommands: AnyCommand[] = [
       'Each item has `type` (user, device, group, servicePrincipal, orgContact). Use --transitive to answer "is ' +
       'this user in the group through a nested group?". Hidden-membership groups also need Member.Read.Hidden.',
     examples: [
-      'm365 entra groups members "Finance Team"',
-      'm365 entra groups members "All Laptops" --transitive --all',
+      'tenantctl entra groups members "Finance Team"',
+      'tenantctl entra groups members "All Laptops" --transitive --all',
     ],
     args: [
       groupArg,
@@ -342,8 +342,8 @@ const groupCommands: AnyCommand[] = [
       'cannot be changed through Graph (use Exchange Online). Adding devices also needs Device.Read.All ' +
       '(delegated) / Device.ReadWrite.All (application); role-assignable groups need Privileged Role Administrator.',
     examples: [
-      'm365 entra groups add-member "Finance Team" jane@contoso.com bob@contoso.com',
-      'm365 entra groups add-member "Autopilot Devices" device:DESKTOP-123',
+      'tenantctl entra groups add-member "Finance Team" jane@contoso.com bob@contoso.com',
+      'tenantctl entra groups add-member "Autopilot Devices" device:DESKTOP-123',
     ],
     args: [
       groupArg,
@@ -400,7 +400,7 @@ const groupCommands: AnyCommand[] = [
     description:
       'Removes a direct member only; members that come through a nested group or a dynamic rule cannot be removed ' +
       'this way. Distribution and mail-enabled security groups are managed in Exchange Online.',
-    examples: ['m365 entra groups remove-member "Finance Team" jane@contoso.com'],
+    examples: ['tenantctl entra groups remove-member "Finance Team" jane@contoso.com'],
     args: [
       groupArg,
       { name: 'member', type: 'string', required: true, positional: true, description: 'Member to remove.' },
@@ -433,13 +433,13 @@ const groupCommands: AnyCommand[] = [
     name: 'groups create',
     summary: 'Create a security or Microsoft 365 group, optionally with an owner and members',
     description:
-      'm365 groups get a mailbox, SharePoint site and can become a Team; security groups are for access, ' +
+      'tenantctl groups get a mailbox, SharePoint site and can become a Team; security groups are for access, ' +
       'licensing and Intune targeting. The mail nickname is derived from the name unless --mail-nickname is given. ' +
       'Owner plus members may total at most 20; add more with `groups add-member`. Dynamic groups and ' +
       'distribution lists are not created here.',
     examples: [
-      'm365 entra groups create --name "Finance Laptops" --type security --members device:FIN-01,device:FIN-02',
-      'm365 entra groups create --name "Project Phoenix" --type m365 --owner jane@contoso.com',
+      'tenantctl entra groups create --name "Finance Laptops" --type security --members device:FIN-01,device:FIN-02',
+      'tenantctl entra groups create --name "Project Phoenix" --type tenantctl --owner jane@contoso.com',
     ],
     args: [
       { name: 'name', type: 'string', required: true, description: 'Display name.' },
@@ -483,7 +483,7 @@ async function groupCreateBody(
   const memberRefs = args.members ?? [];
   if (memberRefs.length + (args.owner ? 1 : 0) > 20) {
     throw new CliError('USAGE', 'At most 20 owners and members can be set when creating a group', {
-      hint: 'Create the group with up to 20, then use `m365 entra groups add-member` for the rest.',
+      hint: 'Create the group with up to 20, then use `tenantctl entra groups add-member` for the rest.',
     });
   }
   const [owner, members] = await Promise.all([
@@ -597,7 +597,7 @@ const directoryLogCommands: AnyCommand[] = [
       'Answers "do we have a spare license?". `available` = enabled - consumed. `lowOnLicenses` is true when ' +
       '2 or fewer, or at most 5%, remain. `warning` units are in the renewal grace period; `suspended` units ' +
       'cannot be assigned. Only SKUs with appliesTo=User can be given to people.',
-    examples: ['m365 entra licenses'],
+    examples: ['tenantctl entra licenses'],
     args: [],
     risk: 'read',
     permissions: { delegated: ['LicenseAssignment.Read.All'], application: ['LicenseAssignment.Read.All'] },
@@ -616,13 +616,13 @@ const directoryLogCommands: AnyCommand[] = [
     description:
       'Use for "why can\'t X sign in", password-spray checks ("failures from one IP") or "who signed in from ' +
       'country Y". Defaults to the last day; logs are kept 30 days. Each item explains its error code; run ' +
-      '`m365 entra signin-error <code>` for detail. Requires Entra ID P1 (free tenants get no sign-in API). ' +
+      '`tenantctl entra signin-error <code>` for detail. Requires Entra ID P1 (free tenants get no sign-in API). ' +
       'Interactive and non-interactive user sign-ins both appear in v1.0 results only as interactive; large ' +
       'windows can time out, so narrow with filters.',
     examples: [
-      'm365 entra signins --user jane@contoso.com --failures-only --days 3',
-      'm365 entra signins --ip 203.0.113.7 --days 7',
-      'm365 entra signins --error-code 50126 --top 200',
+      'tenantctl entra signins --user jane@contoso.com --failures-only --days 3',
+      'tenantctl entra signins --ip 203.0.113.7 --days 7',
+      'tenantctl entra signins --error-code 50126 --top 200',
     ],
     args: [
       { name: 'user', type: 'string', description: 'Only this user (UPN, name or id).' },
@@ -676,7 +676,11 @@ const directoryLogCommands: AnyCommand[] = [
       'Offline lookup, no Graph call. Pass the number from a sign-in log `errorCode` or an AADSTS message. ' +
       "`benign` codes are expected noise (e.g. MFA prompts). Unknown codes return Microsoft's lookup URL. " +
       'Without a code, lists the whole catalog.',
-    examples: ['m365 entra signin-error 50126', 'm365 entra signin-error AADSTS53003', 'm365 entra signin-error'],
+    examples: [
+      'tenantctl entra signin-error 50126',
+      'tenantctl entra signin-error AADSTS53003',
+      'tenantctl entra signin-error',
+    ],
     args: [{ name: 'code', type: 'string', positional: true, description: 'Error code, e.g. 50126 or AADSTS50126.' }],
     risk: 'read',
     permissions: {},
@@ -704,9 +708,9 @@ const directoryLogCommands: AnyCommand[] = [
       'user"); --category values include UserManagement, GroupManagement, RoleManagement, ApplicationManagement, ' +
       'Policy, Device. Logs are kept 7 days (free) or 30 days (Entra ID P1/P2).',
     examples: [
-      'm365 entra audit --target jane@contoso.com --days 14',
-      'm365 entra audit --category RoleManagement --activity "Add member to role"',
-      'm365 entra audit --user admin@contoso.com',
+      'tenantctl entra audit --target jane@contoso.com --days 14',
+      'tenantctl entra audit --category RoleManagement --activity "Add member to role"',
+      'tenantctl entra audit --user admin@contoso.com',
     ],
     args: [
       { name: 'days', type: 'number', default: 7, description: 'Look back this many days.' },
@@ -806,7 +810,7 @@ const roleCommands: AnyCommand[] = [
       'are currently activated, grouped by role; PIM eligible-but-inactive assignments are not listed (see ' +
       '`roles user`). Members can be users, groups (role-assignable) or service principals. `scope` appears ' +
       'only when the assignment is limited to an administrative unit or object.',
-    examples: ['m365 entra roles list', 'm365 entra roles list --role "Global Administrator"'],
+    examples: ['tenantctl entra roles list', 'tenantctl entra roles list --role "Global Administrator"'],
     args: [{ name: 'role', type: 'string', description: 'Only roles whose name contains this text.' }],
     risk: 'read',
     permissions: { delegated: ['RoleManagement.Read.Directory'], application: ['RoleManagement.Read.Directory'] },
@@ -851,7 +855,7 @@ const roleCommands: AnyCommand[] = [
       'are PIM roles the user can activate (Entra ID P2). Roles held through a role-assignable group show under ' +
       'eligible with memberType Group, but active group-based roles are listed under the group, not the user. ' +
       'A section shows `{ error }` when that part needs a permission or license the tenant lacks.',
-    examples: ['m365 entra roles user jane@contoso.com'],
+    examples: ['tenantctl entra roles user jane@contoso.com'],
     args: [{ name: 'user', type: 'string', required: true, positional: true, description: 'User UPN, name or id.' }],
     risk: 'read',
     permissions: {
@@ -965,7 +969,7 @@ export async function resolveServicePrincipal(
     });
     if (byAppId.items[0]) return byAppId.items[0];
     throw new CliError('NOT_FOUND', `No enterprise app with id or appId ${value}`, {
-      hint: 'App registrations without a service principal are not enterprise apps; check `m365 entra apps list`.',
+      hint: 'App registrations without a service principal are not enterprise apps; check `tenantctl entra apps list`.',
     });
   }
   const describe = (sp: ServicePrincipal) => ({ id: sp.id, appId: sp.appId, displayName: sp.displayName });
@@ -1020,8 +1024,8 @@ const appCommands: AnyCommand[] = [
     description:
       'Use to find an app by name or survey third-party apps. `isMicrosoftApp` marks Microsoft first-party apps; ' +
       '`publisherVerified` means a verified publisher. `assignmentRequired` false means any user can sign in. ' +
-      'Next: `m365 entra apps get <app>` for the permissions it holds.',
-    examples: ['m365 entra apps list --search zoom', 'm365 entra apps list --all'],
+      'Next: `tenantctl entra apps get <app>` for the permissions it holds.',
+    examples: ['tenantctl entra apps list --search zoom', 'tenantctl entra apps list --all'],
     args: [{ name: 'search', type: 'string', description: 'Words in the app name.' }, ...LIST_ARGS],
     risk: 'read',
     permissions: { delegated: ['Application.Read.All'], application: ['Application.Read.All'] },
@@ -1045,7 +1049,7 @@ const appCommands: AnyCommand[] = [
       '(e.g. Mail.Read on Microsoft Graph) - powerful because they need no user. `delegatedPermissions` are ' +
       'scopes consented for users: consent "admin" applies to everyone, "user" to one user. Accepts name, appId ' +
       'or object id.',
-    examples: ['m365 entra apps get "Zoom"', 'm365 entra apps get 00000003-0000-0000-c000-000000000000'],
+    examples: ['tenantctl entra apps get "Zoom"', 'tenantctl entra apps get 00000003-0000-0000-c000-000000000000'],
     args: [
       { name: 'app', type: 'string', required: true, positional: true, description: 'App name, appId or object id.' },
     ],
@@ -1111,7 +1115,7 @@ const appCommands: AnyCommand[] = [
       'registration; `daysLeft` < 0 means already expired. Rotate in the Entra admin center (App registrations > ' +
       'Certificates & secrets), then update the consuming service. SAML signing certificates live on enterprise ' +
       'apps and are not covered.',
-    examples: ['m365 entra apps expiring', 'm365 entra apps expiring --days 90'],
+    examples: ['tenantctl entra apps expiring', 'tenantctl entra apps expiring --days 90'],
     args: [
       { name: 'days', type: 'number', default: 30, description: 'Include credentials expiring within N days.' },
       ...LIST_ARGS,
@@ -1323,8 +1327,8 @@ const caCommands: AnyCommand[] = [
       'Use to understand why a sign-in was blocked or MFA was required. `state` report-only policies log but ' +
       'never enforce. Scope fields read like "All", "3 specific" or "GuestsOrExternalUsers + 1 specific"; ' +
       '`grant` is the requirement (e.g. "mfa OR compliantDevice", "block"). Needs Entra ID P1. Next: ' +
-      '`m365 entra ca get <policy>` to see names of included/excluded users, groups, roles and apps.',
-    examples: ['m365 entra ca list'],
+      '`tenantctl entra ca get <policy>` to see names of included/excluded users, groups, roles and apps.',
+    examples: ['tenantctl entra ca list'],
     args: [...LIST_ARGS],
     risk: 'read',
     permissions: { delegated: ['Policy.Read.All'], application: ['Policy.Read.All'], roles: ['Security Reader'] },
@@ -1340,9 +1344,9 @@ const caCommands: AnyCommand[] = [
     summary: 'Show one Conditional Access policy with users, groups, roles, apps and locations named',
     description:
       'Accepts the policy id or part of its name. `resolved` translates ids in the conditions to names ' +
-      '(unresolvable ids stay as ids, e.g. deleted objects). Use with `m365 entra signins --user X` to match ' +
+      '(unresolvable ids stay as ids, e.g. deleted objects). Use with `tenantctl entra signins --user X` to match ' +
       'a failed sign-in (error 53003) to the policy that blocked it.',
-    examples: ['m365 entra ca get "Require MFA for admins"'],
+    examples: ['tenantctl entra ca get "Require MFA for admins"'],
     args: [{ name: 'policy', type: 'string', required: true, positional: true, description: 'Policy id or name.' }],
     risk: 'read',
     permissions: {
@@ -1497,8 +1501,8 @@ const riskCommands: AnyCommand[] = [
     description:
       'Requires Entra ID P2. Use --state atRisk for users that still need action. After investigating, either ' +
       '`risky-users dismiss` (false positive) or `risky-users confirm-compromised`, and reset the password / ' +
-      'revoke sessions with the entra users commands. Next: `m365 entra risk-detections --user <user>` for the why.',
-    examples: ['m365 entra risky-users --state atRisk', 'm365 entra risky-users --level high'],
+      'revoke sessions with the entra users commands. Next: `tenantctl entra risk-detections --user <user>` for the why.',
+    examples: ['tenantctl entra risky-users --state atRisk', 'tenantctl entra risky-users --level high'],
     args: [
       { name: 'level', type: 'string', choices: ['low', 'medium', 'high'], description: 'Only this risk level.' },
       {
@@ -1534,8 +1538,8 @@ const riskCommands: AnyCommand[] = [
     summary: "Dismiss a user's risk after confirming it was a false positive",
     description:
       'Sets the user risk to none (riskState dismissed) so risk-based Conditional Access stops challenging them. ' +
-      'Only do this after reviewing `m365 entra risk-detections --user <user>`. Requires Entra ID P2.',
-    examples: ['m365 entra risky-users dismiss jane@contoso.com'],
+      'Only do this after reviewing `tenantctl entra risk-detections --user <user>`. Requires Entra ID P2.',
+    examples: ['tenantctl entra risky-users dismiss jane@contoso.com'],
     args: [userArg],
     risk: 'write',
     permissions: {
@@ -1562,7 +1566,7 @@ const riskCommands: AnyCommand[] = [
       "Use when an investigation shows the account is in an attacker's hands. Sets user risk to high, so " +
       'user-risk Conditional Access policies block or force a secure password change. Also reset the password ' +
       'and revoke sessions. Requires Entra ID P2.',
-    examples: ['m365 entra risky-users confirm-compromised jane@contoso.com'],
+    examples: ['tenantctl entra risky-users confirm-compromised jane@contoso.com'],
     args: [userArg],
     risk: 'destructive',
     permissions: {
@@ -1595,8 +1599,8 @@ const riskCommands: AnyCommand[] = [
       'leakedCredentials, impossibleTravel) with IP and location. Full detail requires Entra ID P2; P1 tenants ' +
       'see limited detections. Use `correlationId` to find the matching sign-in.',
     examples: [
-      'm365 entra risk-detections --user jane@contoso.com --days 30',
-      'm365 entra risk-detections --level high',
+      'tenantctl entra risk-detections --user jane@contoso.com --days 30',
+      'tenantctl entra risk-detections --level high',
     ],
     args: [
       { name: 'user', type: 'string', description: 'Only this user (UPN, name or id).' },
@@ -1699,7 +1703,7 @@ export async function resolveEntraDevice(ctx: Context, ref: string, select = DEV
     });
     if (byDeviceId.items[0]) return byDeviceId.items[0];
     throw new CliError('NOT_FOUND', `No Entra device with id or deviceId ${value}`, {
-      hint: 'Intune-only ids (managedDevice id) differ; use `m365 intune devices get` for those.',
+      hint: 'Intune-only ids (managedDevice id) differ; use `tenantctl intune devices get` for those.',
     });
   }
   const exact = await ctx.graph.list<EntraDevice>('/devices', {
@@ -1738,8 +1742,11 @@ const deviceCommands: AnyCommand[] = [
     description:
       'Entra device objects (identity), not Intune management records. `join` is Entra joined, Hybrid joined ' +
       'or Entra registered (BYOD). `daysSinceSignIn` is approximate (updated about every 14 days). Use ' +
-      '--stale-days 90 to find cleanup candidates. For compliance, apps and remote actions use `m365 intune devices`.',
-    examples: ['m365 entra devices list --stale-days 90 --all', 'm365 entra devices list --os Windows --disabled'],
+      '--stale-days 90 to find cleanup candidates. For compliance, apps and remote actions use `tenantctl intune devices`.',
+    examples: [
+      'tenantctl entra devices list --stale-days 90 --all',
+      'tenantctl entra devices list --os Windows --disabled',
+    ],
     args: [
       { name: 'search', type: 'string', description: 'Words in the device name.' },
       { name: 'os', type: 'string', description: 'Operating system prefix, e.g. Windows, iOS, MacMDM, Android.' },
@@ -1776,7 +1783,7 @@ const deviceCommands: AnyCommand[] = [
     description:
       'Use to see who a device belongs to in Entra and whether it is enabled, compliant and recently active. ' +
       'Accepts name, deviceId (as shown by Intune / dsregcmd) or object id.',
-    examples: ['m365 entra devices get DESKTOP-123'],
+    examples: ['tenantctl entra devices get DESKTOP-123'],
     args: [deviceArg],
     risk: 'read',
     permissions: { delegated: ['Device.Read.All'], application: ['Device.Read.All'] },
@@ -1801,9 +1808,9 @@ const deviceCommands: AnyCommand[] = [
     summary: 'Disable an Entra device so it can no longer authenticate (lost or stolen device)',
     description:
       'Blocks the device from Entra sign-in, device-based Conditional Access and SSO; users on it lose access to ' +
-      'cloud resources. Does not wipe or retire it in Intune (use `m365 intune devices wipe|retire`). Reverse with ' +
-      '`m365 entra devices enable`. With application permissions only Windows devices can be changed.',
-    examples: ['m365 entra devices disable DESKTOP-123'],
+      'cloud resources. Does not wipe or retire it in Intune (use `tenantctl intune devices wipe|retire`). Reverse with ' +
+      '`tenantctl entra devices enable`. With application permissions only Windows devices can be changed.',
+    examples: ['tenantctl entra devices disable DESKTOP-123'],
     args: [deviceArg],
     risk: 'destructive',
     permissions: DEVICE_WRITE_PERMISSIONS,
@@ -1826,7 +1833,7 @@ const deviceCommands: AnyCommand[] = [
     name: 'devices enable',
     summary: 'Re-enable a disabled Entra device',
     description: 'Restores Entra sign-in for a device disabled with `devices disable`.',
-    examples: ['m365 entra devices enable DESKTOP-123'],
+    examples: ['tenantctl entra devices enable DESKTOP-123'],
     args: [deviceArg],
     risk: 'write',
     permissions: DEVICE_WRITE_PERMISSIONS,
@@ -1878,7 +1885,7 @@ const tenantCommands: AnyCommand[] = [
       `and the last sync is more than ${DIRSYNC_STALE_HOURS} hours old (default cycle is 30 minutes) - check the ` +
       'Entra Connect / Cloud Sync server. Federated domains authenticate at an external IdP (e.g. AD FS), which ' +
       'matters when troubleshooting sign-in.',
-    examples: ['m365 entra tenant'],
+    examples: ['tenantctl entra tenant'],
     args: [],
     risk: 'read',
     permissions: {

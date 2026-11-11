@@ -1,3 +1,4 @@
+import { dlopen, type Pointer, ptr, toArrayBuffer } from 'bun:ffi';
 import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -6,11 +7,14 @@ import { configDir, writePrivateFile } from './config.ts';
 /**
  * Token caches hold refresh tokens, so they are encrypted at rest with AES-256-GCM. The key lives in the OS
  * secret store (macOS Keychain, libsecret, Windows DPAPI); only when none is usable does it fall back to a
- * 0600 key file next to the cache, which `m365 auth status` reports.
+ * 0600 key file next to the cache, which `tenantctl auth status` reports.
  */
 export type KeyStore = 'keychain' | 'libsecret' | 'dpapi' | 'file';
 
-const SERVICE = 'm365-cli';
+const SERVICE = 'tenantctl';
+/** Keychain/libsecret service before the CLI was renamed from `m365`; its key moves to SERVICE on first use. */
+const LEGACY_SERVICE = 'm365-cli';
+const HEX_KEY = /^[0-9a-f]{64}$/;
 const ACCOUNT = 'token-cache-key';
 const ENVELOPE_VERSION = 1;
 
@@ -33,10 +37,16 @@ function run(cmd: string[], stdin?: string): { ok: boolean; out: string } {
   return { ok: result.exitCode === 0, out: result.stdout.toString().trim() };
 }
 
+function keychainLookup(service: string): Buffer | null {
+  const found = run(['security', 'find-generic-password', '-s', service, '-a', ACCOUNT, '-w']);
+  return found.ok && HEX_KEY.test(found.out) ? Buffer.from(found.out, 'hex') : null;
+}
+
 function keychainKey(): Buffer | null {
-  const found = run(['security', 'find-generic-password', '-s', SERVICE, '-a', ACCOUNT, '-w']);
-  if (found.ok && /^[0-9a-f]{64}$/.test(found.out)) return Buffer.from(found.out, 'hex');
-  const key = randomBytes(32);
+  const found = keychainLookup(SERVICE);
+  if (found) return found;
+  const legacy = keychainLookup(LEGACY_SERVICE);
+  const key = legacy ?? randomBytes(32);
   const added = run([
     'security',
     'add-generic-password',
@@ -48,49 +58,73 @@ function keychainKey(): Buffer | null {
     key.toString('hex'),
     '-U',
   ]);
-  return added.ok ? key : null;
+  if (!added.ok) return null;
+  if (legacy) run(['security', 'delete-generic-password', '-s', LEGACY_SERVICE, '-a', ACCOUNT]);
+  return key;
+}
+
+function libsecretLookup(service: string): Buffer | null {
+  const found = run(['secret-tool', 'lookup', 'service', service, 'account', ACCOUNT]);
+  return found.ok && HEX_KEY.test(found.out) ? Buffer.from(found.out, 'hex') : null;
 }
 
 function libsecretKey(): Buffer | null {
-  const found = run(['secret-tool', 'lookup', 'service', SERVICE, 'account', ACCOUNT]);
-  if (found.ok && /^[0-9a-f]{64}$/.test(found.out)) return Buffer.from(found.out, 'hex');
-  const key = randomBytes(32);
+  const found = libsecretLookup(SERVICE);
+  if (found) return found;
+  const legacy = libsecretLookup(LEGACY_SERVICE);
+  const key = legacy ?? randomBytes(32);
   const stored = run(
-    ['secret-tool', 'store', '--label', 'm365 CLI token cache key', 'service', SERVICE, 'account', ACCOUNT],
+    ['secret-tool', 'store', '--label', 'tenantctl token cache key', 'service', SERVICE, 'account', ACCOUNT],
     key.toString('hex'),
   );
-  return stored.ok ? key : null;
+  if (!stored.ok) return null;
+  if (legacy) run(['secret-tool', 'clear', 'service', LEGACY_SERVICE, 'account', ACCOUNT]);
+  return key;
+}
+
+/** CRYPTPROTECT_UI_FORBIDDEN: fail instead of showing a prompt (there is no one to answer it). */
+const CRYPTPROTECT_UI_FORBIDDEN = 0x1;
+
+/**
+ * CryptProtectData / CryptUnprotectData for the current Windows user, called in-process. Spawning PowerShell for
+ * this cost a PowerShell start on every command. Returns null when the call fails.
+ */
+export function dpapi(operation: 'protect' | 'unprotect', input: Buffer): Buffer | null {
+  const signature = { args: ['ptr', 'ptr', 'ptr', 'ptr', 'ptr', 'u32', 'ptr'], returns: 'i32' } as const;
+  const crypt32 = dlopen('crypt32.dll', { CryptProtectData: signature, CryptUnprotectData: signature });
+  const kernel32 = dlopen('kernel32.dll', { LocalFree: { args: ['ptr'], returns: 'ptr' } });
+  try {
+    // DATA_BLOB on 64-bit Windows: DWORD cbData, 4 bytes of padding, BYTE* pbData.
+    const blobIn = Buffer.alloc(16);
+    blobIn.writeUInt32LE(input.length, 0);
+    blobIn.writeBigUInt64LE(BigInt(ptr(input)), 8);
+    const blobOut = Buffer.alloc(16);
+    const call = operation === 'protect' ? crypt32.symbols.CryptProtectData : crypt32.symbols.CryptUnprotectData;
+    if (!call(ptr(blobIn), null, null, null, null, CRYPTPROTECT_UI_FORBIDDEN, ptr(blobOut))) return null;
+    const length = blobOut.readUInt32LE(0);
+    // pbData is an address Windows allocated; bun:ffi represents native addresses as its branded Pointer number.
+    const data = Number(blobOut.readBigUInt64LE(8)) as Pointer;
+    // Copy out before LocalFree releases the memory Windows allocated for the result.
+    const result = Buffer.from(new Uint8Array(toArrayBuffer(data, 0, length)));
+    kernel32.symbols.LocalFree(data);
+    return result;
+  } finally {
+    crypt32.close();
+    kernel32.close();
+  }
 }
 
 /** DPAPI ties the protected key to the Windows user account; the protected blob itself can sit in a file. */
 function dpapiKey(): Buffer | null {
   const path = join(configDir(), 'cache.key.dpapi');
-  const shell = Bun.which('pwsh') ? 'pwsh' : 'powershell';
-  const prelude = 'Add-Type -AssemblyName System.Security;';
   if (existsSync(path)) {
-    const unprotected = run(
-      [
-        shell,
-        '-NoProfile',
-        '-Command',
-        `${prelude}[Convert]::ToBase64String([Security.Cryptography.ProtectedData]::Unprotect([Convert]::FromBase64String([Console]::In.ReadToEnd()), $null, 'CurrentUser'))`,
-      ],
-      readFileSync(path, 'utf8'),
-    );
-    if (unprotected.ok) return Buffer.from(unprotected.out, 'base64');
+    const key = dpapi('unprotect', Buffer.from(readFileSync(path, 'utf8').trim(), 'base64'));
+    if (key) return key;
   }
   const key = randomBytes(32);
-  const protectedKey = run(
-    [
-      shell,
-      '-NoProfile',
-      '-Command',
-      `${prelude}[Convert]::ToBase64String([Security.Cryptography.ProtectedData]::Protect([Convert]::FromBase64String([Console]::In.ReadToEnd()), $null, 'CurrentUser'))`,
-    ],
-    key.toString('base64'),
-  );
-  if (!protectedKey.ok) return null;
-  writePrivateFile(path, protectedKey.out);
+  const sealed = dpapi('protect', key);
+  if (!sealed) return null;
+  writePrivateFile(path, sealed.toString('base64'));
   return key;
 }
 
@@ -104,10 +138,10 @@ function fileKey(): Buffer {
 
 let resolved: { key: Buffer; store: KeyStore } | undefined;
 
-/** The cache key and where it is kept. `M365_TOKEN_CACHE_KEYSTORE=file` forces the file store (CI, containers). */
+/** The cache key and where it is kept. `TENANTCTL_TOKEN_CACHE_KEYSTORE=file` forces the file store (CI, containers). */
 export function cacheKey(): { key: Buffer; store: KeyStore } {
   if (resolved) return resolved;
-  const forced = process.env.M365_TOKEN_CACHE_KEYSTORE;
+  const forced = process.env.TENANTCTL_TOKEN_CACHE_KEYSTORE;
   if (forced !== 'file') {
     const attempts: [KeyStore, () => Buffer | null][] =
       process.platform === 'darwin'

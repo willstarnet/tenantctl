@@ -186,7 +186,7 @@ interface UnshareArgs {
 async function planUnshare(ctx: Context, args: UnshareArgs) {
   if (Boolean(args.permissionId) === args.allLinks) {
     throw new CliError('USAGE', 'Pass either a permission id or --all-links', {
-      hint: 'Find permission ids with `m365 sharepoint files permissions <ref>`.',
+      hint: 'Find permission ids with `tenantctl sharepoint files permissions <ref>`.',
     });
   }
   const target = await resolveDriveItem(ctx, args.ref, { site: args.site });
@@ -195,7 +195,7 @@ async function planUnshare(ctx: Context, args: UnshareArgs) {
     const permission = permissions.find((p) => p.id === args.permissionId);
     if (!permission) {
       throw new CliError('NOT_FOUND', `No permission ${args.permissionId} on "${target.item.name}"`, {
-        hint: 'List current permissions with `m365 sharepoint files permissions <ref>`.',
+        hint: 'List current permissions with `tenantctl sharepoint files permissions <ref>`.',
       });
     }
     if (permission.inheritedFrom) {
@@ -228,7 +228,10 @@ export const commands: AnyCommand[] = [
       "With --site, searches that site's default library. Without it, uses Microsoft Search across all sites " +
       'and OneDrives the caller can see (app-only: shared content in one geo region, --region or derived from ' +
       'the tenant). Use the returned driveId:id as <ref> for `files get`, `files permissions`, `files versions`.',
-    examples: ['m365 sharepoint files search "budget 2026"', 'm365 sharepoint files search invoice --site finance'],
+    examples: [
+      'tenantctl sharepoint files search "budget 2026"',
+      'tenantctl sharepoint files search invoice --site finance',
+    ],
     args: [
       { name: 'query', type: 'string', required: true, positional: true, description: 'Search text.' },
       SITE_OPT,
@@ -273,8 +276,8 @@ export const commands: AnyCommand[] = [
       `sharedScope (anonymous/organization/users) appears when the item is shared. ${REF_NOTE} ` +
       'Next: `files permissions` for exactly who has access.',
     examples: [
-      'm365 sharepoint files get "https://contoso.sharepoint.com/:x:/s/finance/EbC..."',
-      'm365 sharepoint files get "Reports/Q1.xlsx" --site finance',
+      'tenantctl sharepoint files get "https://contoso.sharepoint.com/:x:/s/finance/EbC..."',
+      'tenantctl sharepoint files get "Reports/Q1.xlsx" --site finance',
     ],
     args: [REF_ARG, SITE_OPT],
     risk: 'read',
@@ -309,7 +312,7 @@ export const commands: AnyCommand[] = [
       'inheritedFrom shows where). grantedTo lists people/groups with email and external (outside the ' +
       "tenant's verified domains or a guest account). anonymousLinks and externalUsers summarize the risk. " +
       `Permission ids feed \`files unshare\`. ${REF_NOTE}`,
-    examples: ['m365 sharepoint files permissions "https://contoso.sharepoint.com/:w:/s/hr/EfX..."'],
+    examples: ['tenantctl sharepoint files permissions "https://contoso.sharepoint.com/:w:/s/hr/EfX..."'],
     args: [REF_ARG, SITE_OPT],
     risk: 'read',
     permissions: {
@@ -371,8 +374,8 @@ export const commands: AnyCommand[] = [
       'cannot be removed on the item; unshare them on the parent named in inheritedFrom. The preview lists ' +
       `exactly what will be removed. ${REF_NOTE}`,
     examples: [
-      'm365 sharepoint files unshare "https://contoso.sharepoint.com/:x:/s/finance/EbC..." aTowIy5mfG1lbWJl',
-      'm365 sharepoint files unshare "Reports/Q1.xlsx" --site finance --all-links',
+      'tenantctl sharepoint files unshare "https://contoso.sharepoint.com/:x:/s/finance/EbC..." aTowIy5mfG1lbWJl',
+      'tenantctl sharepoint files unshare "Reports/Q1.xlsx" --site finance --all-links',
     ],
     args: [
       REF_ARG,
@@ -409,7 +412,7 @@ export const commands: AnyCommand[] = [
         item: plan.target.item.name,
         removed: plan.remove.map((p) => p.id),
         skippedInherited: plan.skippedInherited.map((p) => p.id),
-        next: 'Verify with `m365 sharepoint files permissions <ref>`.',
+        next: 'Verify with `tenantctl sharepoint files permissions <ref>`.',
       };
     },
   }),
@@ -418,7 +421,7 @@ export const commands: AnyCommand[] = [
     name: 'files versions',
     summary: 'List the version history of a file, newest first',
     description: `Version ids feed \`files restore-version\`. The first entry (current: true) is the live version. ${REF_NOTE}`,
-    examples: ['m365 sharepoint files versions "Reports/Q1.xlsx" --site finance'],
+    examples: ['tenantctl sharepoint files versions "Reports/Q1.xlsx" --site finance'],
     args: [REF_ARG, SITE_OPT, ...LIST_ARGS],
     risk: 'read',
     permissions: { delegated: ['Sites.Read.All'], application: ['Sites.Read.All'] },
@@ -453,7 +456,7 @@ export const commands: AnyCommand[] = [
     description:
       'Restoring adds a new current version with the old content; history is kept, so it can be undone by ' +
       `restoring again. Get version ids from \`files versions\`. ${REF_NOTE}`,
-    examples: ['m365 sharepoint files restore-version "Reports/Q1.xlsx" 3.0 --site finance'],
+    examples: ['tenantctl sharepoint files restore-version "Reports/Q1.xlsx" 3.0 --site finance'],
     args: [
       REF_ARG,
       { name: 'versionId', type: 'string', required: true, positional: true, description: 'Version id, e.g. 3.0.' },
@@ -467,7 +470,7 @@ export const commands: AnyCommand[] = [
       return {
         item: target.item.name,
         restoredVersion: args.versionId,
-        next: 'Check with `m365 sharepoint files versions <ref>`.',
+        next: 'Check with `tenantctl sharepoint files versions <ref>`.',
       };
     },
   }),

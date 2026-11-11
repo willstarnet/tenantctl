@@ -1,0 +1,109 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  test:
+    uses: ./.github/workflows/ci.yml
+
+  release:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+      - run: bun install --frozen-lockfile
+
+      # src/cli.ts prints package.json `version`; stamp the tag's version in (not committed).
+      - name: Set version from tag
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          npm pkg set "version=$version"
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+
+      # Bun cross-compiles every target from this runner; --archive also writes dist/SHA256SUMS.
+      - run: bun run build --archive
+      - name: Check the linux-x64 binary reports the tag version
+        run: test "$(./dist/tenantctl-linux-x64 --version)" = "$VERSION"
+      - run: bun run release:manifests "$VERSION"
+      - run: cd dist && sha256sum -c SHA256SUMS
+
+      - name: Create GitHub release
+        run: |
+          prerelease=()
+          case "$VERSION" in *-*) prerelease=(--prerelease) ;; esac
+          gh release create "$GITHUB_REF_NAME" --verify-tag --generate-notes --title "tenantctl $VERSION" "${prerelease[@]}" \
+            dist/*.tar.gz dist/*.zip dist/SHA256SUMS dist/manifests/*
+
+  # Package-manager publishing (stable tags only). Each step is skipped until its secret exists:
+  #   HOMEBREW_TAP_DEPLOY_KEY   SSH deploy key (write) of <owner>/homebrew-tap -> brew install <owner>/tap/tenantctl
+  #   SCOOP_BUCKET_DEPLOY_KEY   SSH deploy key (write) of <owner>/scoop-bucket -> scoop install <owner>/tenantctl
+  #   WINGET_TOKEN              classic PAT (public_repo) of an account with a winget-pkgs fork -> PR to microsoft/winget-pkgs
+  # A deploy key can write to its one repository only, unlike a personal access token.
+  publish-brew-scoop:
+    needs: release
+    if: ${{ !contains(github.ref_name, '-') }}
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      HOMEBREW_TAP_DEPLOY_KEY: ${{ secrets.HOMEBREW_TAP_DEPLOY_KEY }}
+      SCOOP_BUCKET_DEPLOY_KEY: ${{ secrets.SCOOP_BUCKET_DEPLOY_KEY }}
+    steps:
+      - name: Download manifests from the release
+        if: env.HOMEBREW_TAP_DEPLOY_KEY != '' || env.SCOOP_BUCKET_DEPLOY_KEY != ''
+        run: gh release download "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --pattern 'tenantctl.rb' --pattern 'tenantctl.json' --dir manifests
+      - name: Update Homebrew tap (<owner>/homebrew-tap)
+        if: env.HOMEBREW_TAP_DEPLOY_KEY != ''
+        run: |
+          key="$RUNNER_TEMP/tap_key" && printf '%s\n' "$HOMEBREW_TAP_DEPLOY_KEY" > "$key" && chmod 600 "$key"
+          export GIT_SSH_COMMAND="ssh -i $key -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
+          git clone --depth 1 "git@github.com:${GITHUB_REPOSITORY_OWNER}/homebrew-tap.git" tap
+          mkdir -p tap/Formula && cp manifests/tenantctl.rb tap/Formula/tenantctl.rb
+          cd tap
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add Formula/tenantctl.rb
+          git commit -m "tenantctl ${GITHUB_REF_NAME#v}" && git push
+      - name: Update Scoop bucket (<owner>/scoop-bucket)
+        if: env.SCOOP_BUCKET_DEPLOY_KEY != ''
+        run: |
+          key="$RUNNER_TEMP/bucket_key" && printf '%s\n' "$SCOOP_BUCKET_DEPLOY_KEY" > "$key" && chmod 600 "$key"
+          export GIT_SSH_COMMAND="ssh -i $key -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
+          git clone --depth 1 "git@github.com:${GITHUB_REPOSITORY_OWNER}/scoop-bucket.git" bucket
+          mkdir -p bucket/bucket && cp manifests/tenantctl.json bucket/bucket/tenantctl.json
+          cd bucket
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add bucket/tenantctl.json
+          git commit -m "tenantctl ${GITHUB_REF_NAME#v}" && git push
+
+  publish-winget:
+    needs: release
+    if: ${{ !contains(github.ref_name, '-') }}
+    runs-on: windows-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      WINGET_TOKEN: ${{ secrets.WINGET_TOKEN }}
+    steps:
+      - name: Open a winget-pkgs pull request
+        if: env.WINGET_TOKEN != ''
+        shell: pwsh
+        run: |
+          gh release download $env:GITHUB_REF_NAME --repo $env:GITHUB_REPOSITORY --pattern '*.yaml' --dir winget
+          Invoke-WebRequest https://aka.ms/wingetcreate/latest -OutFile wingetcreate.exe
+          .\wingetcreate.exe submit --no-open --prtitle "New version: tenantctl $($env:GITHUB_REF_NAME.TrimStart('v'))" --token $env:WINGET_TOKEN winget

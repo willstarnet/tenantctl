@@ -92,7 +92,7 @@ export function teamsOperation(headers: Headers): TeamsOperation {
   return {
     teamId,
     operationId,
-    check: teamId && operationId ? `m365 graph get "/teams('${teamId}')/operations('${operationId}')"` : null,
+    check: teamId && operationId ? `tenantctl graph get "/teams('${teamId}')/operations('${operationId}')"` : null,
   };
 }
 
@@ -148,8 +148,8 @@ export const commands: AnyCommand[] = [
     description:
       'Lists Microsoft 365 groups that have Teams enabled. --search matches words in the display name. ' +
       '--archived reads each team to find read-only (archived) ones, so it is slower on large tenants. ' +
-      'Next: `m365 teams get <team>` for settings, owners and counts.',
-    examples: ['m365 teams list --search marketing', 'm365 teams list --archived --all'],
+      'Next: `tenantctl teams get <team>` for settings, owners and counts.',
+    examples: ['tenantctl teams list --search marketing', 'tenantctl teams list --archived --all'],
     args: [
       { name: 'search', type: 'string', description: 'Words in the team display name.' },
       { name: 'archived', type: 'boolean', description: 'Only archived (read-only) teams.' },
@@ -186,7 +186,7 @@ export const commands: AnyCommand[] = [
       'Use to answer "who owns this team", "can guests/members create channels", "is it archived". ' +
       '`settings` keeps only the member, guest and messaging switches that admins are usually asked about. ' +
       'Sections that fail (missing permission) show `{ error }` instead of failing the whole view.',
-    examples: ['m365 teams get "Project Falcon"'],
+    examples: ['tenantctl teams get "Project Falcon"'],
     args: [TEAM_ARG],
     risk: 'read',
     permissions: {
@@ -269,8 +269,8 @@ export const commands: AnyCommand[] = [
     summary: 'List the owners, members and guests of a team',
     description:
       '`role` is owner, member or guest. `membershipId` is the team membership (not the user id). ' +
-      'Next: `m365 teams members add|remove <team> <user>`.',
-    examples: ['m365 teams members "Project Falcon" --role owner'],
+      'Next: `tenantctl teams members add|remove <team> <user>`.',
+    examples: ['tenantctl teams members "Project Falcon" --role owner'],
     args: [
       TEAM_ARG,
       { name: 'role', type: 'string', choices: ['owner', 'member', 'guest'], description: 'Only this role.' },
@@ -305,7 +305,10 @@ export const commands: AnyCommand[] = [
     description:
       'Adds the user directly to the team (and its Microsoft 365 group). --owner makes them an owner. ' +
       'Guests can be added only with delegated sign-in; app-only adds of guests are not supported by Graph.',
-    examples: ['m365 teams members add "Project Falcon" jane@contoso.com', 'm365 teams members add Sales bob --owner'],
+    examples: [
+      'tenantctl teams members add "Project Falcon" jane@contoso.com',
+      'tenantctl teams members add Sales bob --owner',
+    ],
     args: [TEAM_ARG, USER_ARG, { name: 'owner', type: 'boolean', description: 'Add as an owner.' }],
     risk: 'write',
     permissions: {
@@ -340,7 +343,7 @@ export const commands: AnyCommand[] = [
     description:
       'Removes the team membership (and the Microsoft 365 group membership), so the user loses access to the ' +
       "team's channels and files. A team's last owner cannot be removed.",
-    examples: ['m365 teams members remove "Project Falcon" jane@contoso.com'],
+    examples: ['tenantctl teams members remove "Project Falcon" jane@contoso.com'],
     args: [TEAM_ARG, USER_ARG],
     risk: 'destructive',
     permissions: {
@@ -352,7 +355,7 @@ export const commands: AnyCommand[] = [
       const membership = await findMembership(ctx, team.id, user.id);
       if (!membership) {
         throw new CliError('NOT_FOUND', `${user.userPrincipalName} is not a member of "${team.displayName}"`, {
-          hint: 'Check with `m365 teams members <team>`; access may come from a shared channel or group nesting.',
+          hint: 'Check with `tenantctl teams members <team>`; access may come from a shared channel or group nesting.',
         });
       }
       return {
@@ -378,9 +381,9 @@ export const commands: AnyCommand[] = [
     name: 'channels',
     summary: "List a team's channels with their type (standard, private, shared)",
     description:
-      'Private and shared channels have their own membership: use `m365 teams channels members <team> <channel>` ' +
+      'Private and shared channels have their own membership: use `tenantctl teams channels members <team> <channel>` ' +
       'when someone can see the team but not a channel.',
-    examples: ['m365 teams channels "Project Falcon"'],
+    examples: ['tenantctl teams channels "Project Falcon"'],
     args: [TEAM_ARG, ...LIST_ARGS],
     risk: 'read',
     permissions: {
@@ -404,9 +407,9 @@ export const commands: AnyCommand[] = [
     name: 'channels members',
     summary: 'List who is in a private or shared channel',
     description:
-      'Standard channels inherit team membership, so use `m365 teams members` for them. Shared channels can ' +
+      'Standard channels inherit team membership, so use `tenantctl teams members` for them. Shared channels can ' +
       'include people from other teams or tenants (tenantId differs).',
-    examples: ['m365 teams channels members "Project Falcon" "Leadership"'],
+    examples: ['tenantctl teams channels members "Project Falcon" "Leadership"'],
     args: [
       TEAM_ARG,
       {
@@ -441,7 +444,7 @@ export const commands: AnyCommand[] = [
     description:
       'Answers "which teams is X in". Covers direct team membership only; access through a shared channel ' +
       'does not appear here.',
-    examples: ['m365 teams user jane@contoso.com'],
+    examples: ['tenantctl teams user jane@contoso.com'],
     args: [USER_ARG],
     risk: 'read',
     permissions: {
@@ -473,7 +476,7 @@ export const commands: AnyCommand[] = [
       'availability is the coloured dot (Available, Busy, DoNotDisturb, Away, Offline...); activity adds detail ' +
       '(InACall, InAMeeting, Presenting...). Useful before calling someone or when a user reports their status is ' +
       'stuck. Accepts several users at once.',
-    examples: ['m365 teams presence jane@contoso.com bob@contoso.com'],
+    examples: ['tenantctl teams presence jane@contoso.com bob@contoso.com'],
     args: [
       {
         name: 'users',
@@ -515,7 +518,7 @@ export const commands: AnyCommand[] = [
       'polls the operation (status succeeded/failed, wait 30+ seconds between checks). ' +
       'With app-only auth --owner is required (Graph needs an owner); with delegated sign-in the caller becomes ' +
       'an owner and --owner adds another.',
-    examples: ['m365 teams create --name "Project Falcon" --description "Falcon launch" --owner jane@contoso.com'],
+    examples: ['tenantctl teams create --name "Project Falcon" --description "Falcon launch" --owner jane@contoso.com'],
     args: [
       { name: 'name', type: 'string', required: true, description: 'Team display name.' },
       { name: 'description', type: 'string', description: 'Team description.' },
@@ -578,7 +581,7 @@ export const commands: AnyCommand[] = [
         visibility: args.visibility,
         owner: owner?.userPrincipalName ?? null,
         note: 'Provisioning runs in the background and can take a few minutes.',
-        next: operation.check ?? `m365 teams get "${args.name}"`,
+        next: operation.check ?? `tenantctl teams get "${args.name}"`,
       };
     },
   }),
@@ -589,9 +592,9 @@ export const commands: AnyCommand[] = [
     summary: 'Archive a team (make it read-only)',
     description:
       'Members can still read but no longer post, and the team moves to the archived list. Reversible with ' +
-      '`m365 teams unarchive`. --spo-read-only also makes the SharePoint site read-only for members (delegated ' +
+      '`tenantctl teams unarchive`. --spo-read-only also makes the SharePoint site read-only for members (delegated ' +
       'sign-in only).',
-    examples: ['m365 teams archive "Project Falcon"'],
+    examples: ['tenantctl teams archive "Project Falcon"'],
     args: [
       TEAM_ARG,
       {
@@ -649,7 +652,7 @@ export const commands: AnyCommand[] = [
     domain: 'teams',
     name: 'unarchive',
     summary: 'Restore an archived team to read-write',
-    examples: ['m365 teams unarchive "Project Falcon"'],
+    examples: ['tenantctl teams unarchive "Project Falcon"'],
     args: [TEAM_ARG],
     risk: 'write',
     permissions: {

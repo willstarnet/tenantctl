@@ -56,7 +56,7 @@ function accountFindings(user: GraphUser, skuNames: Record<string, string>): Fin
       area: 'account',
       issue: 'Account is disabled',
       detail: 'Every sign-in fails with 50057 until it is re-enabled.',
-      next: `m365 entra users enable ${upn}`,
+      next: `tenantctl entra users enable ${upn}`,
     });
   }
   for (const state of user.licenseAssignmentStates ?? []) {
@@ -66,7 +66,7 @@ function accountFindings(user: GraphUser, skuNames: Record<string, string>): Fin
       area: 'licenses',
       issue: `License ${skuNames[state.skuId] ?? state.skuId} failed to assign: ${state.error}`,
       detail: state.assignedByGroup ? `Assigned through group ${state.assignedByGroup}.` : 'Assigned directly.',
-      next: `m365 entra users licenses ${upn}`,
+      next: `tenantctl entra users licenses ${upn}`,
     });
   }
   if (!user.assignedLicenses?.length && user.userType !== 'Guest') {
@@ -76,7 +76,7 @@ function accountFindings(user: GraphUser, skuNames: Record<string, string>): Fin
       issue: 'No licenses assigned',
       detail:
         'Without a license the user has no mailbox, Teams or Office apps. Pick a SKU with spare units from the license list.',
-      next: 'm365 entra licenses',
+      next: 'tenantctl entra licenses',
     });
   }
   if (user.onPremisesSyncEnabled) {
@@ -99,7 +99,7 @@ function riskFindings(risk: RiskyUser | null, upn: string): Finding[] {
       area: 'risk',
       issue: `Entra ID Protection rates the user ${risk.riskLevel ?? 'at'} risk (${risk.riskState})`,
       detail: `Risk detail: ${risk.riskDetail ?? 'none'}; updated ${risk.riskLastUpdatedDateTime ?? 'unknown'}. Risk policies may block sign-in or force a password change.`,
-      next: `m365 entra risk-detections --user ${upn}`,
+      next: `tenantctl entra risk-detections --user ${upn}`,
     },
   ];
 }
@@ -121,7 +121,7 @@ function mfaFindings(mfa: { hasStrongMethod?: boolean; registration?: unknown },
       detail:
         'Sign-ins that require MFA prompt for registration, or fail (50079/53004) if registration is blocked. A ' +
         'Temporary Access Pass lets the user register a method.',
-      next: `m365 entra users tap ${upn}`,
+      next: `tenantctl entra users tap ${upn}`,
     },
   ];
 }
@@ -137,14 +137,14 @@ function deviceFindings(devices: ManagedDevice[]): Finding[] {
         area: 'devices',
         issue: `${name} is not compliant`,
         detail: 'Conditional Access policies that require a compliant device block it (53000).',
-        next: `m365 troubleshoot device "${name}"`,
+        next: `tenantctl troubleshoot device "${name}"`,
       });
     } else if ((shaped.daysSinceLastSync ?? 0) > STALE_DEVICE_DAYS) {
       findings.push({
         severity: 'low',
         area: 'devices',
         issue: `${name} has not checked in with Intune for ${shaped.daysSinceLastSync} days`,
-        next: `m365 troubleshoot device "${name}"`,
+        next: `tenantctl troubleshoot device "${name}"`,
       });
     }
   }
@@ -165,7 +165,7 @@ function mailboxFindings(
         area: 'mailbox',
         issue: `Inbox rule "${rule.name ?? rule.id}" ${rule.forwardsExternally ? 'forwards mail outside the organization' : 'looks suspicious'}`,
         detail: `${rule.reason ?? ''} Attackers who take over a mailbox often add such rules.`.trim(),
-        next: `m365 exchange rules list ${upn}`,
+        next: `tenantctl exchange rules list ${upn}`,
       });
     } else if (rule.deletes || rule.movesToFolder) {
       findings.push({
@@ -173,7 +173,7 @@ function mailboxFindings(
         area: 'mailbox',
         issue: `Inbox rule "${rule.name ?? rule.id}" ${rule.deletes ? 'deletes' : `moves mail to ${rule.movesToFolder}`}`,
         detail: 'Explains "missing" mail that was in fact delivered.',
-        next: `m365 exchange rules list ${upn}`,
+        next: `tenantctl exchange rules list ${upn}`,
       });
     }
   }
@@ -182,7 +182,7 @@ function mailboxFindings(
       severity: 'info',
       area: 'mailbox',
       issue: 'Automatic replies (out of office) are on',
-      next: `m365 exchange auto-reply get ${upn}`,
+      next: `tenantctl exchange auto-reply get ${upn}`,
     });
   }
   return findings;
@@ -216,7 +216,7 @@ function forwardingFindings(forwarding: ForwardingCheck | null, upn: string): Fi
       area: 'mailbox',
       issue: `Mailbox forwards all mail to ${target}${forwarding.forwardsExternally ? ' (outside the organization)' : ''}`,
       detail: `Set on the mailbox itself, not as an inbox rule; it ${copy}. Confirm the user or an admin set this on purpose.`,
-      next: `m365 exchange forwarding ${upn}`,
+      next: `tenantctl exchange forwarding ${upn}`,
     },
   ];
 }
@@ -252,12 +252,12 @@ export const commands: AnyCommand[] = [
       'Start here for any "X can\'t sign in / get email / use Teams" request. Checks run in parallel and each ' +
       'degrades on its own: `unavailable` lists sections that could not be checked (usually a missing permission ' +
       "or licence, e.g. sign-in logs need Entra ID P1, risk needs P2, another user's mailbox needs app-only auth, " +
-      'mailbox-level forwarding needs `m365 auth login --service exchange` and pwsh). `findings` is ranked high > ' +
+      'mailbox-level forwarding needs `tenantctl auth login --service exchange` and pwsh). `findings` is ranked high > ' +
       'medium > low > info, each with the command to investigate or fix it; `verdict` is a one-line answer to ' +
       'relay to the user. Sign-in failures are grouped by error code and marked "still failing" when no successful ' +
       'sign-in followed them. Mailbox forwarding (inbox rules and the mailbox-level setting) outside the company is ' +
       'flagged high: it is the usual persistence trick after an account takeover.',
-    examples: ['m365 troubleshoot user jane@contoso.com', 'm365 troubleshoot user "Jane Doe" --days 14'],
+    examples: ['tenantctl troubleshoot user jane@contoso.com', 'tenantctl troubleshoot user "Jane Doe" --days 14'],
     args: [USER_ARG, DAYS_ARG],
     risk: 'read',
     permissions: permissionsOf(
@@ -344,7 +344,10 @@ export const commands: AnyCommand[] = [
       'controls they required (MFA, compliant device...), and the latest correlation id for a Microsoft support ' +
       'case. `latest` is the most recent attempt; compare `lastSuccess` to tell "still failing" from "fixed". ' +
       'Requires Entra ID P1 for sign-in logs.',
-    examples: ['m365 troubleshoot signin jane@contoso.com', 'm365 troubleshoot signin jane --app Outlook --days 2'],
+    examples: [
+      'tenantctl troubleshoot signin jane@contoso.com',
+      'tenantctl troubleshoot signin jane --app Outlook --days 2',
+    ],
     args: [
       USER_ARG,
       DAYS_ARG,
