@@ -214,5 +214,4 @@ Some things are still out of reach. When the user asks for one, say so and name 
 - **Defender portal:** live response, Tenant Allow/Block List.
 
 Exchange admin commands need PowerShell 7 with the ExchangeOnlineManagement module and the Exchange sign-in. If
-they fail with `CONFIG`, relay the install hint. Each `docs/domains/<area>.md` in the repo lists what is not
-covered.
+they fail with `CONFIG`, relay the install hint.

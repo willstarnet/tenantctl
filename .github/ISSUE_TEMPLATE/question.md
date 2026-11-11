@@ -7,7 +7,7 @@ labels: question
 
 ## Question
 
-<!-- What you are trying to do. `tenantctl <area> --help` and docs/domains cover most tasks. -->
+<!-- What you are trying to do. `tenantctl <area> --help` and docs/COMMANDS.md cover every command. -->
 
 ## What you tried
 

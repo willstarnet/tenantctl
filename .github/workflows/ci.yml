@@ -9,6 +9,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   test:
     name: test (${{ matrix.os }})
@@ -18,6 +22,7 @@ jobs:
         # windows-latest matters: some tests (DPAPI secret store) only run on win32.
         os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
@@ -26,3 +31,23 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun run typecheck
       - run: bun test
+
+  lint:
+    name: format and docs
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+      - run: bun install --frozen-lockfile
+      - run: bun run format:check
+      - name: Command docs are up to date
+        run: |
+          bun run docs
+          git diff --exit-code -- docs/ || { echo '::error::docs/ is out of date: run "bun run docs" and commit.'; exit 1; }
+      - name: Compiles to a standalone binary
+        run: |
+          bun build src/cli.ts --compile --minify --bytecode --format=esm --outfile /tmp/tenantctl
+          /tmp/tenantctl --version
