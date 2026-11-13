@@ -6,10 +6,50 @@ All notable changes are listed here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Windows Autopilot from the command line:
+  - `intune autopilot get`: a device found by serial, name or id, with its deployment profile and Intune record
+  - `intune autopilot update`: set or clear the group tag, assigned user and display name
+  - `intune autopilot delete`: deregister a device; refused while the device still has an Intune record
+  - `intune autopilot import` and `intune autopilot imports`: import hardware hashes from a
+    `Get-WindowsAutopilotInfo` CSV and track the import
+  - `intune autopilot sync` and `intune autopilot sync-status`
+  - `intune autopilot profiles list|get|assign|unassign`: deployment profiles and who gets them
+  - `intune autopilot events`: deployment history with failures and phase durations
+  - `intune autopilot list` gained `--group-tag` and `--enrollment-state`
+- `intune enrollment list` and `intune enrollment get`: enrollment status pages, platform restrictions,
+  device limits and Windows Hello for Business, with priorities and assignments.
+- `entra devices delete`: deletes an Entra device after approval. The preview counts the BitLocker recovery keys
+  that go with it and warns when the device is still in Intune or Autopilot.
+- `entra devices settings`: who can join and register devices, MFA, device quota, local administrators and the
+  Entra LAPS switch.
+- `intune filters list` and `intune filters get`. `get` shows a filter's rule and every app and policy that uses
+  it.
+- `--filter`, `--filter-mode` and `--clear-filter` on `intune apps|compliance|config assign`: add, change or
+  remove an assignment filter. Assignments now show the filter by name.
+- `intune config get`: one configuration profile with its settings and assignments, for reading a policy back
+  after a portal change.
+- `intune config export` and `intune config create --file`: copy a settings catalog or endpoint security policy
+  to JSON, edit it, and create it as a new policy.
+- `intune compliance settings`: how many devices pass or fail each setting of a compliance policy.
+
 ### Fixed
 
 - `permissions` example and the `config init --mode app` hint suggested `--mode app`; the option is
   `--mode application`.
+- Choice options accept any letter case: `intune devices list --os Windows` no longer fails.
+- `intune apps|compliance|config assign` and `unassign` removed the assignment filter from every assignment
+  they re-sent. They now read and write assignments through the beta API, which keeps the filters.
+- `intune devices config-states` and `troubleshoot device` no longer hit Intune throttling, and now include
+  settings catalog, administrative template and endpoint security policies. They read the per-device report
+  the Intune admin center uses.
+
+### Changed
+
+- Assignment output names the filter (`filter`) and calls its mode `filterMode` (was `filterType`).
+- List results report the collection size as `meta.total` when Graph returns it; a truncated list says
+  "50 of 62 shown" instead of only "more results exist". `entra groups members` always asks for the count.
 
 ### Removed
 

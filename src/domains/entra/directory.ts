@@ -6,6 +6,8 @@ import { SIGNIN_ERRORS, signinErrorInfo, signinErrorLookupUrl } from '../../core
 import { type AnyCommand, type Context, defineCommand, type ListResult } from '../../core/types.ts';
 import { compact, daysAgo, daysSince, isGuid, settle } from '../../core/util.ts';
 import { type SignIn, shapeSignin } from './users.ts';
+import { AUTOPILOT_DEVICES_PATH } from '../intune/autopilot.ts';
+import { attempt } from '../intune/common.ts';
 
 const ALL = Number.POSITIVE_INFINITY;
 const DAY_MS = 86_400_000;
@@ -309,8 +311,10 @@ const groupCommands: AnyCommand[] = [
     name: 'groups members',
     summary: 'List group members (users, devices, nested groups); --transitive flattens nesting',
     description:
-      'Each item has `type` (user, device, group, servicePrincipal, orgContact). Use --transitive to answer "is ' +
-      'this user in the group through a nested group?". Hidden-membership groups also need Member.Read.Hidden.',
+      'Each item has `type` (user, device, group, servicePrincipal, orgContact). `total` is the full member count ' +
+      '(direct, or all nested with --transitive); when it exceeds the items shown, pass --all before concluding a ' +
+      'member is missing. Use --transitive to answer "is this user in the group through a nested group?". ' +
+      'Hidden-membership groups also need Member.Read.Hidden.',
     examples: [
       'tenantctl entra groups members "Finance Team"',
       'tenantctl entra groups members "All Laptops" --transitive --all',
@@ -324,11 +328,15 @@ const groupCommands: AnyCommand[] = [
     permissions: { delegated: ['GroupMember.Read.All'], application: ['GroupMember.Read.All'] },
     async run(ctx, args) {
       const group = await resolveGroup(ctx, args.group);
-      const r = await ctx.graph.list<DirectoryObject>(
-        `/groups/${seg(group.id)}/${args.transitive ? 'transitiveMembers' : 'members'}`,
-        { query: { $select: MEMBER_SELECT }, limit: listLimit(args) },
-      );
-      return ctx.full ? r : { items: r.items.map(shapeDirectoryObject), truncated: r.truncated };
+      const path = `/groups/${seg(group.id)}/${args.transitive ? 'transitiveMembers' : 'members'}`;
+      const limit = listLimit(args);
+      // Counting needs advanced query; if Graph rejects it for this group, list without a total.
+      const r = await ctx.graph
+        .list<DirectoryObject>(path, { query: { $select: MEMBER_SELECT, $count: true }, advanced: true, limit })
+        .catch(() => ctx.graph.list<DirectoryObject>(path, { query: { $select: MEMBER_SELECT }, limit }));
+      return ctx.full
+        ? r
+        : compact({ items: r.items.map(shapeDirectoryObject), truncated: r.truncated, total: r.total });
     },
   }),
 
@@ -1847,7 +1855,140 @@ const deviceCommands: AnyCommand[] = [
       return { id: device.id, displayName: device.displayName, accountEnabled: true };
     },
   }),
+
+  defineCommand({
+    domain: 'entra',
+    name: 'devices delete',
+    summary: 'Delete an Entra device object (and the BitLocker recovery keys escrowed for it)',
+    description:
+      'Permanent: the device can no longer authenticate and its BitLocker recovery keys stored in Entra are deleted ' +
+      'with it. For an Intune-managed or Autopilot-registered device, Microsoft says to delete the Intune record ' +
+      'first (`tenantctl intune devices retire|wipe`), then deregister it from Autopilot, which also cleans up the ' +
+      'Entra object; deleting the Entra object of an Autopilot device can make Autopilot enrollment fail. The ' +
+      'preview counts recovery keys (BitlockerKey.ReadBasic.All) and checks Intune (DeviceManagementManagedDevices.' +
+      'Read.All) and Autopilot (DeviceManagementServiceConfig.Read.All); without those it reports "unknown".',
+    examples: ['tenantctl entra devices delete DESKTOP-123'],
+    args: [deviceArg],
+    risk: 'destructive',
+    permissions: {
+      ...DEVICE_WRITE_PERMISSIONS,
+      roles: ['Cloud Device Administrator', 'Intune Administrator', 'Windows 365 Administrator'],
+    },
+    async preview(ctx, args) {
+      const device = await resolveEntraDevice(ctx, args.device);
+      const byDeviceId = (path: string, field: string) =>
+        device.deviceId
+          ? attempt(
+              ctx.graph
+                .list<{ id: string }>(path, { query: { $filter: `${field} eq ${odata(device.deviceId)}` }, limit: ALL })
+                .then((r) => r.items.length),
+            )
+          : Promise.resolve(0);
+      const [owners, keys, intune, autopilot] = await Promise.all([
+        attempt(
+          ctx.graph
+            .list<DirectoryObject>(`/devices/${seg(device.id)}/registeredOwners`, { limit: ALL, pageSize: false })
+            .then((r) => r.items.map((o) => o.userPrincipalName ?? o.displayName ?? o.id)),
+        ),
+        byDeviceId('/informationProtection/bitlocker/recoveryKeys', 'deviceId'),
+        byDeviceId('/deviceManagement/managedDevices', 'azureADDeviceId'),
+        byDeviceId(AUTOPILOT_DEVICES_PATH, 'azureActiveDirectoryDeviceId'),
+      ]);
+      const count = (v: number | { error: unknown }) => (typeof v === 'number' ? v : 'unknown');
+      const warnings: string[] = [];
+      const keyCount = count(keys);
+      if (keyCount !== 0) {
+        warnings.push(`${keyCount} BitLocker recovery key(s) escrowed for this device will be deleted with it.`);
+      }
+      const managed = count(intune);
+      const registered = count(autopilot);
+      if (managed !== 0 || registered !== 0) {
+        warnings.push(
+          `Intune-managed: ${managed === 'unknown' ? 'unknown' : managed > 0 ? 'yes' : 'no'}; Autopilot-registered: ` +
+            `${registered === 'unknown' ? 'unknown' : registered > 0 ? 'yes' : 'no'}. Microsoft guidance: delete the ` +
+            'Intune record first (retire/wipe), then deregister from Autopilot instead of deleting the Entra object.',
+        );
+      }
+      return {
+        device: compact({
+          ...shapeEntraDevice(device),
+          owners: Array.isArray(owners) ? owners : 'unknown',
+        }),
+        bitLockerKeys: keyCount,
+        intuneManaged: managed === 'unknown' ? managed : managed > 0,
+        autopilotRegistered: registered === 'unknown' ? registered : registered > 0,
+        warnings,
+        action: `Permanently delete Entra device "${device.displayName}" (${device.deviceId ?? device.id}).`,
+      };
+    },
+    async run(ctx, args) {
+      const device = await resolveEntraDevice(ctx, args.device);
+      await ctx.graph.delete(`/devices/${seg(device.id)}`);
+      return { id: device.id, deviceId: device.deviceId ?? null, displayName: device.displayName, deleted: true };
+    },
+  }),
+
+  defineCommand({
+    domain: 'entra',
+    name: 'devices settings',
+    summary: 'Show the tenant device registration policy: who can join/register, MFA, quota, local admins, LAPS',
+    description:
+      'Entra > Devices > Device settings. `registeringUserIsLocalAdmin` is all, none or selected (with ids); ' +
+      '`globalAdminsAreLocalAdmins` and both apply to future joins only. `lapsEnabled` is the Entra LAPS switch. ' +
+      'Additional local administrators are members of the "Microsoft Entra Joined Device Local Administrator" ' +
+      'role, which this policy does not expose (see `tenantctl entra roles`).',
+    examples: ['tenantctl entra devices settings'],
+    args: [],
+    risk: 'read',
+    permissions: {
+      delegated: ['Policy.Read.DeviceConfiguration'],
+      application: ['Policy.Read.DeviceConfiguration'],
+      roles: ['Global Reader', 'Cloud Device Administrator', 'Intune Administrator'],
+    },
+    async run(ctx) {
+      const policy = await ctx.graph.get<DeviceRegistrationPolicy>('/policies/deviceRegistrationPolicy');
+      if (ctx.full) return policy;
+      const admins = policy.azureADJoin?.localAdmins;
+      return {
+        allowedToJoin: membership(policy.azureADJoin?.allowedToJoin),
+        allowedToRegister: membership(policy.azureADRegistration?.allowedToRegister),
+        mfaToJoinOrRegister: policy.multiFactorAuthConfiguration ?? null,
+        userDeviceQuota: policy.userDeviceQuota ?? null,
+        globalAdminsAreLocalAdmins: admins?.enableGlobalAdmins ?? null,
+        registeringUserIsLocalAdmin: membership(admins?.registeringUsers),
+        lapsEnabled: policy.localAdminPassword?.isEnabled ?? null,
+      };
+    },
+  }),
 ];
+
+interface RegistrationMembership {
+  '@odata.type'?: string;
+  users?: string[];
+  groups?: string[];
+}
+
+interface DeviceRegistrationPolicy {
+  userDeviceQuota?: number | null;
+  multiFactorAuthConfiguration?: string | null;
+  localAdminPassword?: { isEnabled?: boolean | null } | null;
+  azureADRegistration?: { allowedToRegister?: RegistrationMembership | null } | null;
+  azureADJoin?: {
+    allowedToJoin?: RegistrationMembership | null;
+    localAdmins?: { enableGlobalAdmins?: boolean | null; registeringUsers?: RegistrationMembership | null } | null;
+  } | null;
+}
+
+/** all / none / selected (with user and group ids) from a deviceRegistrationMembership. */
+function membership(m: RegistrationMembership | null | undefined) {
+  const type = m?.['@odata.type'] ?? '';
+  if (type.endsWith('allDeviceRegistrationMembership')) return 'all';
+  if (type.endsWith('noDeviceRegistrationMembership')) return 'none';
+  if (type.endsWith('enumeratedDeviceRegistrationMembership')) {
+    return { selected: { users: m?.users ?? [], groups: m?.groups ?? [] } };
+  }
+  return m ? type || null : null;
+}
 
 // ---------------------------------------------------------------------------------------------------------------
 // Tenant

@@ -13,6 +13,24 @@ export const WRITE_DEVICES = 'DeviceManagementManagedDevices.ReadWrite.All';
 export const INTUNE_READ_ROLES = ['Intune Administrator', 'Global Reader'];
 export const INTUNE_ADMIN_ROLES = ['Intune Administrator'];
 
+export const READ_APPS = 'DeviceManagementApps.Read.All';
+export const READ_GROUPS = 'GroupMember.Read.All';
+export const COMPLIANCE_PATH = '/deviceManagement/deviceCompliancePolicies';
+export const CONFIG_PATH = '/deviceManagement/deviceConfigurations';
+export const SETTINGS_CATALOG_PATH = '/deviceManagement/configurationPolicies';
+export const APPS_PATH = '/deviceAppManagement/mobileApps';
+
+/** An app, compliance policy or configuration profile as the Intune catalog lists return it. */
+export interface Policy {
+  id: string;
+  displayName?: string | null;
+  name?: string | null;
+  description?: string | null;
+  lastModifiedDateTime?: string | null;
+  assignments?: unknown[];
+  [key: string]: unknown;
+}
+
 /** The managedDevice properties every compact view needs; list responses omit some unless selected. */
 export const DEVICE_SELECT = [
   'id',
@@ -327,4 +345,13 @@ export function pickByName<T extends { id: string }>(
     (item) => [name(item)],
     (item) => ({ id: item.id, name: name(item) }),
   );
+}
+
+/** An app, compliance policy or classic profile by name or id from its catalog collection. */
+export async function resolveCatalogItem(ctx: Context, path: string, ref: string, kind: string): Promise<Policy> {
+  const { items } = await ctx.graph.list<Policy>(path, {
+    query: { $select: 'id,displayName' },
+    limit: Number.POSITIVE_INFINITY,
+  });
+  return pickByName(items, ref, kind, (p) => p.displayName);
 }

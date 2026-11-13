@@ -28,7 +28,7 @@ export interface Envelope {
   ok: true;
   command: string;
   data: unknown;
-  meta?: { count: number; truncated: boolean; hint?: string };
+  meta?: { count: number; total?: number; truncated: boolean; hint?: string };
 }
 
 export function envelope(command: string, result: unknown, fields?: string[]): Envelope {
@@ -39,8 +39,13 @@ export function envelope(command: string, result: unknown, fields?: string[]): E
       data: project(result.items, fields),
       meta: {
         count: result.items.length,
+        ...(result.total === undefined ? {} : { total: result.total }),
         truncated: result.truncated,
-        ...(result.truncated ? { hint: 'More results exist: raise --top or pass --all.' } : {}),
+        ...(result.truncated
+          ? {
+              hint: `${result.total === undefined ? 'More results exist' : `${result.items.length} of ${result.total} shown`}: raise --top or pass --all.`,
+            }
+          : {}),
       },
     };
   }
@@ -122,7 +127,9 @@ export function renderSuccess(command: string, result: unknown, options: OutputO
   if (options.format === 'json') return JSON.stringify(env, null, 2);
   if (options.format === 'csv') return csv(env.data, options.fields);
   const text = describe(env.data, options.fields);
-  if (env.meta?.truncated) return `${text}\n\n${env.meta.count} shown; ${env.meta.hint}`;
+  if (env.meta?.truncated) {
+    return `${text}\n\n${env.meta.total === undefined ? `${env.meta.count} shown; ` : ''}${env.meta.hint}`;
+  }
   return env.meta ? `${text}\n\n${env.meta.count} result${env.meta.count === 1 ? '' : 's'}` : text;
 }
 

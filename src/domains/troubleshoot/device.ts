@@ -5,11 +5,13 @@ import { commands as entraCommands } from '../entra/index.ts';
 import { type EntraDevice, shapeEntraDevice } from '../entra/directory.ts';
 import { DEVICES_PATH, deviceSummary } from '../intune/common.ts';
 import {
+  type ConfigProfileView,
   complianceSummary,
+  deviceConfigurationReport,
   devicePolicyStates,
+  groupReportRows,
   commands as intuneCommands,
   type ManagedDevice,
-  type PolicyState,
   type PolicyStateView,
   platformOf,
   resolveManagedDevice,
@@ -36,14 +38,6 @@ interface DeviceDetail {
 
 async function complianceStates(ctx: Context, deviceId: string): Promise<PolicyStateView[]> {
   return shapePolicyStates(await devicePolicyStates(ctx, deviceId));
-}
-
-async function configStates(ctx: Context, deviceId: string): Promise<PolicyStateView[]> {
-  const { items } = await ctx.graph.list<PolicyState>(`${DEVICES_PATH}/${seg(deviceId)}/deviceConfigurationStates`, {
-    limit: Number.POSITIVE_INFINITY,
-    pageSize: false,
-  });
-  return shapePolicyStates(items);
 }
 
 async function entraObject(ctx: Context, entraDeviceId: string): Promise<EntraDevice | null> {
@@ -186,7 +180,7 @@ function hardwareFindings(device: ManagedDevice, detail: DeviceDetail | null, na
   return findings;
 }
 
-function configFindings(policies: PolicyStateView[], name: string): Finding[] {
+function configFindings(policies: ConfigProfileView[], name: string): Finding[] {
   const broken = policies.filter((p) => BAD_STATES[p.state ?? '']);
   if (!broken.length) return [];
   return [
@@ -242,7 +236,8 @@ export const commands: AnyCommand[] = [
       const hasEntraId = Boolean(device.azureADDeviceId) && !NO_ENTRA_ID.test(device.azureADDeviceId ?? '');
       const sections = await settle({
         compliance: complianceStates(ctx, device.id),
-        configuration: configStates(ctx, device.id),
+        // The portal's per-device report covers classic, settings catalog, ADMX and endpoint security policies.
+        configuration: deviceConfigurationReport(ctx, device.id).then<ConfigProfileView[]>(groupReportRows),
         detail: deviceDetail(ctx, device.id),
         entra: hasEntraId ? entraObject(ctx, device.azureADDeviceId as string) : Promise.resolve(undefined),
         signins: deviceSigninFailures(ctx, device, args.days),

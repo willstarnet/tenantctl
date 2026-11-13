@@ -134,6 +134,8 @@ export interface ListResult<T = unknown> {
   readonly items: T[];
   /** More results exist beyond the requested limit. */
   readonly truncated: boolean;
+  /** Size of the whole collection when Graph reported it (`$count=true`); moved into the envelope's `meta`. */
+  readonly total?: number;
 }
 
 export function isListResult(value: unknown): value is ListResult {

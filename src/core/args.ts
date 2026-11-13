@@ -29,14 +29,19 @@ function coerce(spec: ArgSpec, raw: string): unknown {
   }
 }
 
-function checkChoice(spec: ArgSpec, value: unknown): void {
-  if (!spec.choices) return;
-  const values = Array.isArray(value) ? value : [value];
-  for (const entry of values) {
-    if (!spec.choices.includes(String(entry))) {
-      throw new CliError('USAGE', `--${kebab(spec.name)} must be one of: ${spec.choices.join(', ')} (got "${entry}")`);
+/** Accept a choice in any letter case (`--os Windows`) and return the declared spelling. */
+function normalizeChoice(spec: ArgSpec, value: unknown): unknown {
+  const choices = spec.choices;
+  if (!choices) return value;
+  const pick = (entry: unknown) => {
+    const wanted = String(entry).toLowerCase();
+    const match = choices.find((choice) => choice.toLowerCase() === wanted);
+    if (match === undefined) {
+      throw new CliError('USAGE', `--${kebab(spec.name)} must be one of: ${choices.join(', ')} (got "${entry}")`);
     }
-  }
+    return match;
+  };
+  return Array.isArray(value) ? value.map(pick) : pick(value);
 }
 
 /** Parse command tokens (global flags already removed) against the command's arg specs. */
@@ -135,7 +140,7 @@ export function parseArgs(specs: readonly ArgSpec[], tokens: string[]): Record<s
         );
       }
     }
-    if (values[spec.name] !== undefined) checkChoice(spec, values[spec.name]);
+    if (values[spec.name] !== undefined) values[spec.name] = normalizeChoice(spec, values[spec.name]);
   }
   return values;
 }

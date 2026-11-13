@@ -249,8 +249,15 @@ describe('troubleshoot device', () => {
       ]),
     },
     {
-      path: `/deviceManagement/managedDevices/${DEVICE_ID}/deviceConfigurationStates`,
-      reply: page([{ id: 'c1', displayName: 'Wi-Fi', state: 'error', settingStates: [] }]),
+      method: 'POST',
+      path: '/deviceManagement/reports/getConfigurationPoliciesReportForDevice',
+      reply: {
+        body: JSON.stringify({
+          TotalRowCount: 1,
+          Schema: ['PolicyId', 'PolicyName', 'PolicyBaseTypeName', 'PolicyStatus'].map((Column) => ({ Column })),
+          Values: [['c1', 'Wi-Fi', 'Microsoft.Management.Services.Api.DeviceConfiguration', 4]],
+        }),
+      },
     },
     {
       path: '/devices',

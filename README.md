@@ -98,18 +98,18 @@ its arguments) and `tenantctl <area> --help`.
 
 ## Commands
 
-| Area           | For                                                                                                  |
-| -------------- | ---------------------------------------------------------------------------------------------------- |
-| `troubleshoot` | one-shot diagnostics for a user, sign-in, device, mail delivery or the whole tenant                  |
-| `entra`        | users, guests, groups, licenses, sign-ins, MFA, roles, apps and consent, Conditional Access, risk    |
-| `intune`       | devices and remote actions, compliance, configuration, apps, assignments, Autopilot                  |
-| `defender`     | incidents, alerts, advanced hunting, Secure Score, device response                                   |
-| `exchange`     | mailboxes, rules, forwarding, permissions, shared mailboxes, lists, quarantine, holds, message trace |
-| `sharepoint`   | sites, files, sharing and permissions, OneDrive                                                      |
-| `purview`      | unified audit log search, eDiscovery cases and holds                                                 |
-| `teams`        | teams, channels, membership, presence, call quality                                                  |
-| `health`       | Microsoft 365 service health and message center                                                      |
-| `graph`        | raw Microsoft Graph requests                                                                         |
+| Area           | For                                                                                                         |
+| -------------- | ----------------------------------------------------------------------------------------------------------- |
+| `troubleshoot` | one-shot diagnostics for a user, sign-in, device, mail delivery or the whole tenant                         |
+| `entra`        | users, guests, groups, licenses, sign-ins, MFA, roles, apps and consent, Conditional Access, risk           |
+| `intune`       | devices and remote actions, compliance, configuration, apps, assignments and filters, Autopilot, enrollment |
+| `defender`     | incidents, alerts, advanced hunting, Secure Score, device response                                          |
+| `exchange`     | mailboxes, rules, forwarding, permissions, shared mailboxes, lists, quarantine, holds, message trace        |
+| `sharepoint`   | sites, files, sharing and permissions, OneDrive                                                             |
+| `purview`      | unified audit log search, eDiscovery cases and holds                                                        |
+| `teams`        | teams, channels, membership, presence, call quality                                                         |
+| `health`       | Microsoft 365 service health and message center                                                             |
+| `graph`        | raw Microsoft Graph requests                                                                                |
 
 The full list of every command, with arguments, examples and permissions, is in
 [docs/COMMANDS.md](docs/COMMANDS.md). The permissions each command needs are summarized in

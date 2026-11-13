@@ -172,7 +172,28 @@ Each step needs approval:
 1. `tenantctl intune assignments <group>` shows what already targets the group.
 2. To deploy, use `tenantctl intune apps assign <app> --intent required --group <group>`, `tenantctl intune compliance assign`,
    or `tenantctl intune config assign`. These are destructive because they affect every member; the preview shows the
-   member count.
+   member count. Add `--filter <name>` to narrow the group with an assignment filter (`tenantctl intune filters list`);
+   `--clear-filter` removes one.
+
+**"Read back / copy a policy"**
+
+- `tenantctl intune config get <policy>` shows its settings and assignments (use it after any admin center change).
+- To change a settings catalog policy's settings: `tenantctl intune config export <policy> --out p.json`, edit the
+  file, `tenantctl intune config create --file p.json --name "<new name>"`, assign the new policy, then unassign the
+  old one.
+- Per-device status for every policy type: `tenantctl intune devices config-states <device>`.
+
+**Autopilot: "new laptop didn't get the right setup" / register devices**
+
+1. `tenantctl intune autopilot get <serial or name>`: profile status must be `assignedInSync` before the device is
+   reset or turned on.
+2. `tenantctl intune autopilot events <device> --failed-only` explains a failed deployment.
+3. Register hardware hashes with `tenantctl intune autopilot import <csv>`, follow with `autopilot imports`, then
+   `autopilot sync`.
+4. Profiles and who gets them: `tenantctl intune autopilot profiles list`; enrollment status page and restrictions:
+   `tenantctl intune enrollment list`.
+5. Deregistering: delete the Intune record first; `autopilot delete` refuses otherwise. Never delete the Entra
+   object of an Autopilot device with `entra devices delete`.
 
 **"Export it to a spreadsheet"**
 Add `--all --csv` to any list command and redirect to a file, e.g. `tenantctl intune devices list --compliance
@@ -192,18 +213,18 @@ the reason (packet loss, jitter, Wi-Fi). Call records need an app-only profile.
 
 ## Areas
 
-| Area           | For                                                                                                                                                                                                                                                          |
-| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `troubleshoot` | user, signin, device, mail, tenant                                                                                                                                                                                                                           |
-| `entra`        | users (lifecycle, invite, bulk-create, MFA, licenses, sign-ins), groups, licenses, subscriptions, signins, signin-error, audit, roles, apps (consents, revoke-consent, disable), ca, risky-users, risk-detections, access-reviews, partners, devices, tenant |
-| `intune`       | devices (list/get/compliance/config-states/apps/bitlocker-key/laps/actions and remote actions), compliance, config, apps, assignments (assign/unassign), autopilot, report noncompliant                                                                      |
-| `defender`     | incidents, alerts, hunt (KQL + templates), secure-score, threat-submit, machines (Defender for Endpoint: list/get/isolate/release/scan/collect-package/restrict/actions)                                                                                     |
-| `exchange`     | mailbox (details/convert), auto-reply, rules, forwarding (set/clear), permissions, shared-mailbox, dl, quarantine, hold, archive, transport-rules, rooms, trace, messages, calendar, usage                                                                   |
-| `sharepoint`   | sites, files (search/permissions/unshare/versions), onedrive (get/usage/grant/revoke), settings                                                                                                                                                              |
-| `purview`      | audit (search/results/queries/file-deleted/mailbox-access/admin-changes), ediscovery (list/create/custodians/hold/release)                                                                                                                                   |
-| `teams`        | list/get/members/channels, user, presence, create/archive, calls, activity                                                                                                                                                                                   |
-| `health`       | overview, issues, messages                                                                                                                                                                                                                                   |
-| `graph`        | raw `get` (read) and `post/patch/put/delete` (always destructive). Last resort only.                                                                                                                                                                         |
+| Area           | For                                                                                                                                                                                                                                                                                                                       |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `troubleshoot` | user, signin, device, mail, tenant                                                                                                                                                                                                                                                                                        |
+| `entra`        | users (lifecycle, invite, bulk-create, MFA, licenses, sign-ins), groups, licenses, subscriptions, signins, signin-error, audit, roles, apps (consents, revoke-consent, disable), ca, risky-users, risk-detections, access-reviews, partners, devices (list/get/disable/enable/delete/settings), tenant                    |
+| `intune`       | devices (list/get/compliance/config-states/apps/bitlocker-key/laps/actions and remote actions), compliance (list/status/settings), config (list/get/status/export/create), apps, assign/unassign with filters, assignments, filters, autopilot (devices, import, sync, profiles, events), enrollment, report noncompliant |
+| `defender`     | incidents, alerts, hunt (KQL + templates), secure-score, threat-submit, machines (Defender for Endpoint: list/get/isolate/release/scan/collect-package/restrict/actions)                                                                                                                                                  |
+| `exchange`     | mailbox (details/convert), auto-reply, rules, forwarding (set/clear), permissions, shared-mailbox, dl, quarantine, hold, archive, transport-rules, rooms, trace, messages, calendar, usage                                                                                                                                |
+| `sharepoint`   | sites, files (search/permissions/unshare/versions), onedrive (get/usage/grant/revoke), settings                                                                                                                                                                                                                           |
+| `purview`      | audit (search/results/queries/file-deleted/mailbox-access/admin-changes), ediscovery (list/create/custodians/hold/release)                                                                                                                                                                                                |
+| `teams`        | list/get/members/channels, user, presence, create/archive, calls, activity                                                                                                                                                                                                                                                |
+| `health`       | overview, issues, messages                                                                                                                                                                                                                                                                                                |
+| `graph`        | raw `get` (read) and `post/patch/put/delete` (always destructive). Last resort only.                                                                                                                                                                                                                                      |
 
 ## Limits to state honestly
 

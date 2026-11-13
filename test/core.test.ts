@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { parseArgs } from '../src/core/args.ts';
 import { CliError } from '../src/core/errors.ts';
 import { parseCsv } from '../src/core/graph.ts';
+import { envelope } from '../src/core/output.ts';
 import { resolveUser } from '../src/core/resolve.ts';
 import { auditLogPath, issueConfirmToken, verifyConfirmToken } from '../src/core/safety.ts';
 import { defineCommand } from '../src/core/types.ts';
@@ -41,6 +42,10 @@ describe('parseArgs', () => {
     expect(() => parseArgs(specs, [])).toThrow('Missing required');
     expect(() => parseArgs(specs, ['x', 'y'])).toThrow('Unexpected argument');
   });
+
+  test('choices match in any letter case and come back in the declared spelling', () => {
+    expect(parseArgs(specs, ['x', '--state', 'ON'])).toMatchObject({ state: 'on' });
+  });
 });
 
 describe('GraphClient', () => {
@@ -71,6 +76,29 @@ describe('GraphClient', () => {
     expect((error as CliError).code).toBe('FORBIDDEN');
     expect((error as CliError).requestId).toBe('test-request-id');
     expect(await ctx.graph.tryGet('/users/missing')).toBeNull();
+  });
+
+  test('list reports @odata.count as total, and the envelope says how many of the total are shown', async () => {
+    const { ctx } = mockContext([
+      {
+        path: '/groups/g/members',
+        reply: {
+          body: {
+            '@odata.count': 62,
+            value: [{ id: '1' }, { id: '2' }],
+            '@odata.nextLink': 'https://graph.test/v1.0/groups/g/members?$skiptoken=x',
+          },
+        },
+      },
+    ]);
+    const result = await ctx.graph.list('/groups/g/members', { query: { $count: true }, limit: 2 });
+    expect(result).toEqual({ items: [{ id: '1' }, { id: '2' }], truncated: true, total: 62 });
+    expect(envelope('entra groups members', result).meta).toEqual({
+      count: 2,
+      total: 62,
+      truncated: true,
+      hint: '2 of 62 shown: raise --top or pass --all.',
+    });
   });
 
   test('parseCsv handles BOM, quotes, embedded commas and CRLF', () => {

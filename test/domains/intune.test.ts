@@ -1,7 +1,19 @@
 import { describe, expect, test } from 'bun:test';
+import { readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { CliError } from '../../src/core/errors.ts';
+import type { Context } from '../../src/core/types.ts';
 import { commands, resolveManagedDevice } from '../../src/domains/intune/index.ts';
-import { commandById, graphError, mockContext, type MockRoute, page, runCommand } from '../helpers/graphMock.ts';
+import {
+  commandById,
+  graphError,
+  type MockRequest,
+  mockContext,
+  type MockRoute,
+  page,
+  runCommand,
+  tempConfigDir,
+} from '../helpers/graphMock.ts';
 
 const DEVICES = '/deviceManagement/managedDevices';
 
@@ -557,5 +569,437 @@ describe('policies and reports', () => {
     expect(result.byReason).toEqual([{ policy: 'Windows baseline', setting: 'BitLockerEnabled', devices: 2 }]);
     const devices = result.devices as { id: string; error?: { code: string } }[];
     expect(devices.find((d) => d.id === '00000000-0000-0000-0000-000000000002')?.error?.code).toBe('FORBIDDEN');
+  });
+});
+
+describe('devices config-states', () => {
+  const REPORT = '/deviceManagement/reports/getConfigurationPoliciesReportForDevice';
+  const STATES = `${DEVICES}/${laptop.id}/deviceConfigurationStates`;
+  const SCHEMA = [
+    'PolicyId',
+    'PolicyName',
+    'PolicyBaseTypeName',
+    'PolicyStatus',
+    'UPN',
+    'UserId',
+    'PspdpuLastModifiedTimeUtc',
+    'UnifiedPolicyType',
+  ];
+  const PROFILE = 'Microsoft.Management.Services.Api.DeviceConfiguration';
+  const CATALOG = 'DeviceManagementConfigurationPolicy';
+  const rows = [
+    ['c1', 'Corporate Wi-Fi', PROFILE, 5, 'jane@contoso.com', 'u-1', '2026-11-01T10:00:00Z', 'Wifi'],
+    ['c1', 'Corporate Wi-Fi', PROFILE, 2, '', '', '2026-11-02T10:00:00Z', 'Wifi'],
+    ['s1', 'Edge settings', CATALOG, 6, '', '', '2026-11-03T10:00:00Z', 'SettingsCatalog'],
+    ['e1', 'Defender AV', CATALOG, 2, '', '', '2026-11-03T10:00:00Z', 'MicrosoftDefenderAntivirus'],
+    ['a1', 'Office ADMX', 'DeviceConfigurationAdmxPolicy', 1, '', '', null, null],
+  ];
+
+  /** Report pages of `size` rows, answered as a text body the way Intune streams reports. */
+  function reportRoute(all: unknown[][], size: number): MockRoute {
+    return {
+      method: 'POST',
+      path: REPORT,
+      reply: (req) => {
+        const { skip } = req.body as { skip: number };
+        const values = all.slice(skip, skip + size);
+        return {
+          body: JSON.stringify({
+            TotalRowCount: all.length,
+            Schema: SCHEMA.map((Column) => ({ Column })),
+            Values: values,
+          }),
+        };
+      },
+    };
+  }
+
+  const deviceRoute: MockRoute = { path: `${DEVICES}/${laptop.id}`, reply: { body: laptop } };
+  const run = (ctx: Context) =>
+    commandById(commands, 'intune devices config-states').run(ctx, { device: laptop.id }) as Promise<{
+      counts: Record<string, number>;
+      problems: Record<string, unknown>[];
+      profiles: Record<string, unknown>[];
+    }>;
+
+  test('pages the portal report for the device and groups user contexts per policy', async () => {
+    const { ctx, calls } = mockContext([
+      deviceRoute,
+      reportRoute(rows, 2),
+      {
+        path: STATES,
+        reply: page([
+          {
+            id: 'c1',
+            displayName: 'Corporate Wi-Fi',
+            state: 'error',
+            settingStates: [
+              { settingName: 'SSID', state: 'error', errorDescription: 'Certificate not found' },
+              { settingName: 'AutoConnect', state: 'compliant' },
+            ],
+          },
+        ]),
+      },
+    ]);
+    const result = await run(ctx);
+    const reports = calls.filter((c) => c.path === REPORT);
+    expect(reports.map((c) => (c.body as { skip: number }).skip)).toEqual([0, 2, 4]);
+    expect(reports[0]?.version).toBe('beta');
+    expect(reports[0]?.body).toMatchObject({
+      filter:
+        "((PolicyBaseTypeName eq 'Microsoft.Management.Services.Api.DeviceConfiguration') or " +
+        "(PolicyBaseTypeName eq 'DeviceManagementConfigurationPolicy') or " +
+        "(PolicyBaseTypeName eq 'DeviceConfigurationAdmxPolicy') or " +
+        "(PolicyBaseTypeName eq 'Microsoft.Management.Services.Api.DeviceManagementIntent')) and " +
+        `(IntuneDeviceId eq '${laptop.id}')`,
+      top: 100,
+      orderBy: ['PolicyName'],
+    });
+    expect(result.counts).toEqual({ error: 1, conflict: 1, succeeded: 1, notApplicable: 1 });
+    expect(result.problems).toEqual([
+      expect.objectContaining({
+        policy: 'Corporate Wi-Fi',
+        kind: 'profile',
+        state: 'error',
+        statusCode: 5,
+        lastReported: '2026-11-02T10:00:00Z',
+        users: [
+          expect.objectContaining({ user: 'jane@contoso.com', state: 'error', statusCode: 5 }),
+          expect.objectContaining({ user: null, state: 'succeeded', statusCode: 2 }),
+        ],
+        failingSettings: [expect.objectContaining({ setting: 'SSID', errorDescription: 'Certificate not found' })],
+      }),
+      expect.objectContaining({ policy: 'Edge settings', kind: 'settingsCatalog', state: 'conflict', statusCode: 6 }),
+    ]);
+    expect(result.problems[1]?.failingSettings).toBeUndefined();
+    expect(result.profiles).toEqual([
+      expect.objectContaining({ policy: 'Defender AV', kind: 'endpointSecurity', state: 'succeeded' }),
+      expect.objectContaining({ policy: 'Office ADMX', kind: 'admx', state: 'notApplicable', statusCode: 1 }),
+    ]);
+  });
+
+  test('only classic profiles in error or conflict trigger the per-setting call', async () => {
+    const { ctx, calls } = mockContext([deviceRoute, reportRoute(rows.slice(2), 100)]);
+    const result = await run(ctx);
+    expect(result.problems.map((p) => p.policy)).toEqual(['Edge settings']);
+    expect(calls.some((c) => c.path === STATES)).toBe(false);
+  });
+
+  test('a throttled per-setting call degrades to { error } on the classic problem', async () => {
+    const { ctx } = mockContext([
+      deviceRoute,
+      reportRoute(rows.slice(0, 1), 100),
+      { path: STATES, reply: graphError(429, 'TooManyRequests', 'Too many requests') },
+    ]);
+    const result = await run(ctx);
+    expect(result.problems[0]?.failingSettings).toEqual({
+      error: expect.objectContaining({ code: 'THROTTLED' }),
+    });
+  });
+
+  test('an unreadable report is a GRAPH_ERROR, not a crash', async () => {
+    const { ctx } = mockContext([deviceRoute, { method: 'POST', path: REPORT, reply: { body: '<html>oops' } }]);
+    const error = (await run(ctx).catch((e: unknown) => e)) as CliError;
+    expect(error.code).toBe('GRAPH_ERROR');
+  });
+});
+
+describe('config get / export / create', () => {
+  const CONFIG = '/deviceManagement/deviceConfigurations';
+  const CATALOG = '/deviceManagement/configurationPolicies';
+  const GROUP = '11111111-1111-1111-1111-111111111111';
+  const catalogPolicy = {
+    '@odata.context':
+      'https://graph.microsoft.com/beta/$metadata#deviceManagement/configurationPolicies(settings())/$entity',
+    id: 'sc1',
+    name: 'Screen lock',
+    description: 'Lock after 15 minutes',
+    platforms: 'macOS',
+    technologies: 'mdm,appleRemoteManagement',
+    roleScopeTagIds: ['0'],
+    createdDateTime: '2026-11-01T00:00:00Z',
+    lastModifiedDateTime: '2026-11-02T00:00:00Z',
+    settingCount: 2,
+    isAssigned: true,
+    templateReference: { templateId: '', templateFamily: 'none', templateDisplayName: null },
+    'settings@odata.context': 'https://graph.microsoft.com/beta/$metadata#settings',
+    settings: [
+      {
+        id: '0',
+        settingInstance: {
+          '@odata.type': '#microsoft.graph.deviceManagementConfigurationGroupSettingCollectionInstance',
+          settingDefinitionId: 'passcode_passcode',
+          settingInstanceTemplateReference: null,
+          groupSettingCollectionValue: [
+            {
+              settingValueTemplateReference: null,
+              children: [
+                {
+                  '@odata.type': '#microsoft.graph.deviceManagementConfigurationSimpleSettingInstance',
+                  settingDefinitionId: 'passcode_maxinactivity',
+                  simpleSettingValue: {
+                    '@odata.type': '#microsoft.graph.deviceManagementConfigurationIntegerSettingValue',
+                    value: 15,
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      },
+      {
+        id: '1',
+        settingInstance: {
+          '@odata.type': '#microsoft.graph.deviceManagementConfigurationChoiceSettingInstance',
+          settingDefinitionId: 'device_vendor_msft_lock',
+          choiceSettingValue: {
+            value: 'device_vendor_msft_lock_1',
+            children: [
+              {
+                '@odata.type': '#microsoft.graph.deviceManagementConfigurationSimpleSettingCollectionInstance',
+                settingDefinitionId: 'device_vendor_msft_lock_message',
+                simpleSettingCollectionValue: [{ value: 'Locked' }, { value: 'Ask IT' }],
+              },
+            ],
+          },
+        },
+      },
+    ],
+  };
+  const listRoutes: MockRoute[] = [
+    { path: CONFIG, reply: page([{ id: 'c1', displayName: 'Corporate Wi-Fi' }]) },
+    { path: CATALOG, reply: page([{ id: 'sc1', name: 'Screen lock' }]) },
+  ];
+
+  test('get flattens settings catalog values and names assignment groups', async () => {
+    const { outcome, calls } = await runCommand(
+      commandById(commands, 'intune config get'),
+      ['screen lock'],
+      [
+        ...listRoutes,
+        { path: `${CATALOG}/sc1`, reply: { body: catalogPolicy } },
+        {
+          path: `${CATALOG}/sc1/assignments`,
+          reply: page([
+            { id: 'a1', target: { '@odata.type': '#microsoft.graph.groupAssignmentTarget', groupId: GROUP } },
+          ]),
+        },
+        {
+          method: 'POST',
+          path: '/$batch',
+          reply: { body: { responses: [{ id: '0', status: 200, body: { displayName: 'Mac Fleet' } }] } },
+        },
+      ],
+    );
+    expect(calls.find((c) => c.path === `${CATALOG}/sc1`)?.query.$expand).toBe('settings');
+    const result = outcome.kind === 'result' ? (outcome.result as Record<string, unknown>) : {};
+    expect(result).toMatchObject({
+      id: 'sc1',
+      name: 'Screen lock',
+      kind: 'settingsCatalog',
+      platforms: 'macOS',
+      settingCount: 2,
+      assignments: [{ target: 'group', group: 'Mac Fleet', groupId: GROUP }],
+    });
+    expect(result.templateReference).toBeUndefined();
+    expect(result.settings).toEqual([
+      { id: 'passcode_passcode', value: [[{ id: 'passcode_maxinactivity', value: 15 }]] },
+      {
+        id: 'device_vendor_msft_lock',
+        value: 'device_vendor_msft_lock_1',
+        choice: '1',
+        children: [{ id: 'device_vendor_msft_lock_message', value: ['Locked', 'Ask IT'] }],
+      },
+    ]);
+  });
+
+  test('get shows a classic profile with only its configured settings', async () => {
+    const { outcome } = await runCommand(
+      commandById(commands, 'intune config get'),
+      ['wi-fi'],
+      [
+        ...listRoutes,
+        {
+          path: `${CONFIG}/c1`,
+          reply: {
+            body: {
+              '@odata.type': '#microsoft.graph.windowsWifiConfiguration',
+              id: 'c1',
+              displayName: 'Corporate Wi-Fi',
+              version: 3,
+              ssid: 'CONTOSO',
+              connectAutomatically: true,
+              proxySetting: 'notConfigured',
+              preSharedKey: null,
+              roleScopeTagIds: ['0'],
+            },
+          },
+        },
+        { path: `${CONFIG}/c1/assignments`, reply: page([]) },
+      ],
+    );
+    const result = outcome.kind === 'result' ? (outcome.result as Record<string, unknown>) : {};
+    expect(result).toMatchObject({ kind: 'profile', type: 'windowsWifiConfiguration', name: 'Corporate Wi-Fi' });
+    expect(result.settings).toEqual({ ssid: 'CONTOSO', connectAutomatically: true });
+  });
+
+  test('export strips ids, read-only properties and annotations but keeps setting @odata.type', async () => {
+    const out = join(tempConfigDir(), 'policy.json');
+    const routes = [...listRoutes, { path: `${CATALOG}/sc1`, reply: { body: catalogPolicy } }];
+    const { outcome } = await runCommand(commandById(commands, 'intune config export'), ['sc1'], routes);
+    const body = (outcome.kind === 'result' ? outcome.result : {}) as Record<string, unknown>;
+    expect(Object.keys(body).sort()).toEqual(
+      ['description', 'name', 'platforms', 'roleScopeTagIds', 'settings', 'technologies'].sort(),
+    );
+    const text = JSON.stringify(body);
+    expect(text).not.toContain('"id"');
+    expect(text).not.toContain('@odata.context');
+    expect(text).not.toContain('null');
+    expect(body.settings).toEqual([
+      {
+        settingInstance: expect.objectContaining({
+          '@odata.type': '#microsoft.graph.deviceManagementConfigurationGroupSettingCollectionInstance',
+          settingDefinitionId: 'passcode_passcode',
+        }),
+      },
+      expect.anything(),
+    ]);
+
+    const written = await runCommand(commandById(commands, 'intune config export'), ['sc1', '--out', out], routes);
+    expect(written.outcome.kind === 'result' && written.outcome.result).toMatchObject({ file: out, settingCount: 2 });
+    expect(JSON.parse(readFileSync(out, 'utf8'))).toEqual(body);
+  });
+
+  test('export refuses a classic profile', async () => {
+    const error = (await runCommand(commandById(commands, 'intune config export'), ['c1'], listRoutes).catch(
+      (e: unknown) => e,
+    )) as CliError;
+    expect(error.code).toBe('USAGE');
+  });
+
+  describe('create', () => {
+    const create = commandById(commands, 'intune config create');
+    const file = (content: unknown) => {
+      const path = join(tempConfigDir(), 'policy.json');
+      writeFileSync(path, typeof content === 'string' ? content : JSON.stringify(content));
+      return path;
+    };
+    const valid = {
+      name: 'Screen lock',
+      platforms: 'macOS',
+      technologies: 'mdm',
+      settings: [{ settingInstance: catalogPolicy.settings[1]?.settingInstance }],
+    };
+    const post: MockRoute = {
+      method: 'POST',
+      path: CATALOG,
+      reply: { status: 201, body: { id: 'new1', name: 'Screen lock v2' } },
+    };
+
+    test.each([
+      ['invalid JSON', '{ nope', 'not valid JSON'],
+      ['an array', [valid], 'one JSON object'],
+      ['no name', { ...valid, name: undefined }, 'missing name'],
+      ['no platforms or technologies', { name: 'x', settings: valid.settings }, 'missing platforms, technologies'],
+      ['empty settings', { ...valid, settings: [] }, 'no settings'],
+      ['a setting without a definition id', { ...valid, settings: [{ settingInstance: {} }] }, 'settings[0]'],
+    ])('refuses %s before calling Graph', async (_label, content, message) => {
+      let posted = false;
+      const route: MockRoute = {
+        ...post,
+        reply: () => {
+          posted = true;
+          return { status: 201, body: {} };
+        },
+      };
+      const error = (await runCommand(create, ['--file', file(content)], [route], { allowWrites: true }).catch(
+        (e: unknown) => e,
+      )) as CliError;
+      expect(error.code).toBe('USAGE');
+      expect(error.message).toContain(message);
+      expect(posted).toBe(false);
+    });
+
+    test('--dry-run previews name, platform and setting ids', async () => {
+      const { outcome, calls } = await runCommand(create, ['--file', file(valid), '--name', 'Screen lock v2'], [post], {
+        allowWrites: true,
+        dryRun: true,
+      });
+      const preview = outcome.kind === 'result' ? (outcome.result as { preview: Record<string, unknown> }).preview : {};
+      expect(preview).toMatchObject({
+        name: 'Screen lock v2',
+        platforms: 'macOS',
+        technologies: 'mdm',
+        settingCount: 1,
+        settingIds: ['device_vendor_msft_lock'],
+      });
+      expect(String(preview.action)).toContain('"Screen lock v2"');
+      expect(calls).toEqual([]);
+    });
+
+    test('posts the cleaned body to beta with --name applied and returns an assign hint', async () => {
+      const { outcome, calls } = await runCommand(
+        create,
+        ['--file', file({ ...catalogPolicy, name: 'Old' }), '--name', 'Screen lock v2'],
+        [post],
+        { allowWrites: true },
+      );
+      const call = calls.find((c: MockRequest) => c.method === 'POST' && c.path === CATALOG);
+      expect(call?.version).toBe('beta');
+      const body = call?.body as Record<string, unknown>;
+      expect(body).toMatchObject({
+        name: 'Screen lock v2',
+        platforms: 'macOS',
+        technologies: 'mdm,appleRemoteManagement',
+      });
+      expect(body.id).toBeUndefined();
+      expect(body.isAssigned).toBeUndefined();
+      expect(body.settingCount).toBeUndefined();
+      expect((body.settings as unknown[]).length).toBe(2);
+      expect(outcome.kind === 'result' && outcome.result).toEqual({
+        id: 'new1',
+        name: 'Screen lock v2',
+        settingCount: 2,
+        next: 'tenantctl intune config assign new1 --group <group>',
+      });
+    });
+  });
+});
+
+describe('compliance settings', () => {
+  test('counts results per setting, most failing first', async () => {
+    const COMPLIANCE = '/deviceManagement/deviceCompliancePolicies';
+    const { outcome, calls } = await runCommand(
+      commandById(commands, 'intune compliance settings'),
+      ['baseline'],
+      [
+        { path: COMPLIANCE, reply: page([{ id: 'p1', displayName: 'Windows baseline' }]) },
+        {
+          path: `${COMPLIANCE}/p1/deviceSettingStateSummaries`,
+          reply: page([
+            { settingName: 'Windows10CompliancePolicy.SecureBootEnabled', compliantDeviceCount: 10 },
+            {
+              settingName: 'Windows10CompliancePolicy.BitLockerEnabled',
+              compliantDeviceCount: 6,
+              nonCompliantDeviceCount: 3,
+              errorDeviceCount: 1,
+            },
+            {
+              settingName: 'Windows10CompliancePolicy.OsMinimumVersion',
+              nonCompliantDeviceCount: 1,
+              conflictDeviceCount: 1,
+            },
+          ]),
+        },
+      ],
+    );
+    expect(calls.at(-1)?.version).toBe('v1.0');
+    const result = outcome.kind === 'result' ? (outcome.result as { settings: Record<string, unknown>[] }) : null;
+    expect(result?.settings.map((s) => [s.setting, s.failing])).toEqual([
+      ['BitLockerEnabled', 4],
+      ['OsMinimumVersion', 2],
+      ['SecureBootEnabled', 0],
+    ]);
+    expect(result?.settings[0]).toMatchObject({ compliant: 6, nonCompliant: 3, error: 1, conflict: 0 });
   });
 });

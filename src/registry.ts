@@ -25,7 +25,11 @@ export const DOMAINS: DomainInfo[] = [
     summary:
       'Users, guests, groups, licenses, sign-ins, MFA, roles, apps and consent, Conditional Access, risk, reviews',
   },
-  { name: 'intune', summary: 'Managed devices, compliance, configuration, apps, Autopilot, remote actions' },
+  {
+    name: 'intune',
+    summary:
+      'Managed devices, compliance, configuration, apps, assignment filters, Autopilot, enrollment, remote actions',
+  },
   {
     name: 'defender',
     summary: 'Incidents, alerts, hunting, Secure Score, device response (isolate, scan, investigate)',
