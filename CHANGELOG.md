@@ -6,6 +6,8 @@ All notable changes are listed here. The format follows
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-11-16
+
 ### Fixed
 
 - `intune apps status` failed for every app: Microsoft removed the `installSummary` and `deviceStatuses` endpoints.
@@ -119,6 +121,7 @@ All notable changes are listed here. The format follows
 - First version as `m365`: Entra ID, Intune, Defender, Exchange Online, SharePoint/OneDrive, Purview audit, Teams
   and service health commands, `troubleshoot` diagnostics, write gating with human approval, and an audit log.
 
-[Unreleased]: https://github.com/willstarnet/tenantctl/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/willstarnet/tenantctl/compare/v0.2.2...HEAD
+[0.2.2]: https://github.com/willstarnet/tenantctl/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/willstarnet/tenantctl/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/willstarnet/tenantctl/releases/tag/v0.2.0
