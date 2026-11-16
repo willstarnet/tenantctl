@@ -11,6 +11,7 @@
 import { kebab } from '../src/core/args.ts';
 import { resolveProfile } from '../src/core/config.ts';
 import { CliError, toCliError } from '../src/core/errors.ts';
+import type { ApiVersion } from '../src/core/graph.ts';
 import { createContext, execute } from '../src/core/execute.ts';
 import type { AnyCommand, Context } from '../src/core/types.ts';
 import { COMMANDS, commandId } from '../src/registry.ts';
@@ -43,10 +44,11 @@ async function first<T>(
   path: string,
   query: Record<string, string> = {},
   pageSize: number | false = 100,
+  version: ApiVersion = 'v1.0',
 ) {
   try {
     // Some collections (team channels) reject $top; pageSize false leaves it off.
-    const { items } = await context.graph.list<T>(path, { query, limit: 1, pageSize });
+    const { items } = await context.graph.list<T>(path, { query, limit: 1, pageSize, version });
     return items[0];
   } catch {
     return undefined;
@@ -80,6 +82,11 @@ interface Samples {
   accessReview?: Ref;
   ediscoveryCase?: Ref;
   auditQuery?: Ref;
+  autopilotDevice?: { serialNumber: string };
+  autopilotProfile?: Ref;
+  enrollmentConfig?: Ref;
+  assignmentFilter?: Ref;
+  catalogPolicy?: Ref;
 }
 
 /** First file (not folder) in a user's OneDrive root; the children endpoint can't filter on the file facet. */
@@ -132,6 +139,11 @@ async function discover(): Promise<Samples> {
     accessReview,
     ediscoveryCase,
     auditQuery,
+    autopilotDevice,
+    autopilotProfile,
+    enrollmentConfig,
+    assignmentFilter,
+    catalogPolicy,
   ] = await Promise.all([
     first<{ id: string }>(ctx, '/groups', { $select: 'id' }),
     first<{ id: string; deviceName: string }>(ctx, '/deviceManagement/managedDevices', { $select: 'id,deviceName' }),
@@ -155,6 +167,11 @@ async function discover(): Promise<Samples> {
     first<{ id: string }>(ctx, '/identityGovernance/accessReviews/definitions', { $select: 'id' }),
     first<{ id: string }>(ctx, '/security/cases/ediscoveryCases', { $select: 'id' }),
     first<{ id: string }>(ctx, '/security/auditLog/queries', {}, false),
+    first<{ serialNumber: string }>(ctx, '/deviceManagement/windowsAutopilotDeviceIdentities', {}),
+    first<{ id: string }>(ctx, '/deviceManagement/windowsAutopilotDeploymentProfiles', {}, 100, 'beta'),
+    first<{ id: string }>(ctx, '/deviceManagement/deviceEnrollmentConfigurations', { $select: 'id' }),
+    first<{ id: string }>(ctx, '/deviceManagement/assignmentFilters', { $select: 'id' }, 100, 'beta'),
+    first<{ id: string }>(ctx, '/deviceManagement/configurationPolicies', { $select: 'id' }, 100, 'beta'),
   ]);
   return {
     me,
@@ -178,6 +195,11 @@ async function discover(): Promise<Samples> {
     accessReview,
     ediscoveryCase,
     auditQuery,
+    autopilotDevice,
+    autopilotProfile,
+    enrollmentConfig,
+    assignmentFilter,
+    catalogPolicy,
   };
 }
 
@@ -193,7 +215,14 @@ function sample(command: AnyCommand, arg: string, s: Samples): string | undefine
   const byCommand: Record<string, string | undefined> = {
     'entra ca get:policy': s.ca?.id,
     'intune compliance status:policy': s.compliance?.id,
+    'intune compliance settings:policy': s.compliance?.id,
     'intune config status:policy': s.config?.id,
+    'intune config get:policy': s.catalogPolicy?.id,
+    'intune config export:policy': s.catalogPolicy?.id,
+    'intune filters get:filter': s.assignmentFilter?.id,
+    'intune autopilot get:device': s.autopilotDevice?.serialNumber,
+    'intune autopilot profiles get:deploymentProfile': s.autopilotProfile?.id,
+    'intune enrollment get:config': s.enrollmentConfig?.id,
     'intune apps status:app': s.mobileApp?.id,
     'intune apps assignments:app': s.mobileApp?.id,
     'entra devices get:device': s.entraDevice?.id,

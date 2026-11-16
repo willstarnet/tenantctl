@@ -726,6 +726,109 @@ describe('entra devices', () => {
     });
     expect(second.calls.at(-1)).toMatchObject({ method: 'PATCH', body: { accountEnabled: false } });
   });
+
+  const deleteRoutes = [
+    { path: '/devices', reply: page([laptop]) },
+    { path: `/devices/${DEVICE_ID}/registeredOwners`, reply: page([jane]) },
+    { path: '/deviceManagement/managedDevices', reply: page([{ id: 'md-1' }]) },
+    { path: '/deviceManagement/windowsAutopilotDeviceIdentities', reply: page([]) },
+    { method: 'DELETE', path: `/devices/${DEVICE_ID}`, reply: { status: 204 } },
+  ];
+
+  test('delete previews owners, BitLocker key count and Intune state, then deletes once confirmed', async () => {
+    const routes = [
+      { path: '/informationProtection/bitlocker/recoveryKeys', reply: page([{ id: 'k1' }, { id: 'k2' }]) },
+      ...deleteRoutes,
+    ];
+    const first = await runCommand(cmd('devices delete'), ['FIN-LAPTOP-01'], routes, { allowWrites: true });
+    expect(first.outcome.kind).toBe('confirm');
+    expect(first.calls.some((c) => c.method === 'DELETE')).toBe(false);
+    const keyCall = first.calls.find((c) => c.path === '/informationProtection/bitlocker/recoveryKeys');
+    expect(keyCall?.query.$filter).toBe(`deviceId eq '${DEVICE_DEVICEID}'`);
+    const mdCall = first.calls.find((c) => c.path === '/deviceManagement/managedDevices');
+    expect(mdCall?.query.$filter).toBe(`azureADDeviceId eq '${DEVICE_DEVICEID}'`);
+    if (first.outcome.kind !== 'confirm') return;
+    const preview = first.outcome.preview as { warnings: string[]; action: string };
+    expect(preview).toMatchObject({
+      device: {
+        displayName: 'FIN-LAPTOP-01',
+        deviceId: DEVICE_DEVICEID,
+        join: 'Entra joined',
+        owners: ['jane@contoso.com'],
+      },
+      bitLockerKeys: 2,
+      intuneManaged: true,
+      autopilotRegistered: false,
+    });
+    expect(preview.warnings[0]).toContain('2 BitLocker recovery key(s)');
+    expect(preview.warnings[1]).toContain('tenantctl intune autopilot delete');
+    expect(preview.action).toContain('Permanently delete Entra device "FIN-LAPTOP-01"');
+    const second = await runCommand(cmd('devices delete'), ['FIN-LAPTOP-01'], routes, {
+      allowWrites: true,
+      confirm: first.outcome.token,
+    });
+    expect(second.calls.at(-1)).toMatchObject({ method: 'DELETE', path: `/devices/${DEVICE_ID}` });
+    expect(resultOf(second.outcome)).toMatchObject({ id: DEVICE_ID, deleted: true });
+  });
+
+  test('delete preview reports unknown when recovery keys cannot be read', async () => {
+    const routes = [
+      {
+        path: '/informationProtection/bitlocker/recoveryKeys',
+        reply: graphError(403, 'Authorization_RequestDenied', 'Insufficient privileges'),
+      },
+      ...deleteRoutes,
+    ];
+    const { outcome } = await runCommand(cmd('devices delete'), ['FIN-LAPTOP-01'], routes, { allowWrites: true });
+    if (outcome.kind !== 'confirm') throw new Error(`expected confirm, got ${outcome.kind}`);
+    const preview = outcome.preview as { bitLockerKeys: unknown; warnings: string[] };
+    expect(preview.bitLockerKeys).toBe('unknown');
+    expect(preview.warnings[0]).toContain('unknown BitLocker recovery key(s)');
+  });
+
+  test('settings summarizes join, register, MFA, quota, local admins and LAPS', async () => {
+    const { outcome, calls } = await runCommand(
+      cmd('devices settings'),
+      [],
+      [
+        {
+          path: '/policies/deviceRegistrationPolicy',
+          reply: {
+            body: {
+              id: 'deviceRegistrationPolicy',
+              userDeviceQuota: 20,
+              multiFactorAuthConfiguration: 'required',
+              localAdminPassword: { isEnabled: true },
+              azureADRegistration: {
+                allowedToRegister: { '@odata.type': '#microsoft.graph.allDeviceRegistrationMembership' },
+              },
+              azureADJoin: {
+                allowedToJoin: {
+                  '@odata.type': '#microsoft.graph.enumeratedDeviceRegistrationMembership',
+                  users: [USER_ID],
+                  groups: [GROUP_ID],
+                },
+                localAdmins: {
+                  enableGlobalAdmins: false,
+                  registeringUsers: { '@odata.type': '#microsoft.graph.noDeviceRegistrationMembership' },
+                },
+              },
+            },
+          },
+        },
+      ],
+    );
+    expect(calls[0]?.version).toBe('v1.0');
+    expect(resultOf(outcome)).toEqual({
+      allowedToJoin: { selected: { users: [USER_ID], groups: [GROUP_ID] } },
+      allowedToRegister: 'all',
+      mfaToJoinOrRegister: 'required',
+      userDeviceQuota: 20,
+      globalAdminsAreLocalAdmins: false,
+      registeringUserIsLocalAdmin: 'none',
+      lapsEnabled: true,
+    });
+  });
 });
 
 describe('tenant', () => {
@@ -771,5 +874,38 @@ describe('tenant', () => {
       dirSyncStale: true,
       domains: [{ name: 'contoso.com', authentication: 'federated', isDefault: true }],
     });
+  });
+});
+
+describe('groups members', () => {
+  const member = { '@odata.type': '#microsoft.graph.device', id: DEVICE_ID, displayName: 'FIN-LAPTOP-01' };
+
+  test('counts members with advanced query and reports the total', async () => {
+    const { outcome, calls } = await runCommand(
+      cmd('groups members'),
+      [GROUP_ID, '--top', '1'],
+      [groupRoute, { path: `/groups/${GROUP_ID}/members`, reply: { body: { value: [member], '@odata.count': 62 } } }],
+    );
+    const call = calls.find((c) => c.path === `/groups/${GROUP_ID}/members`);
+    expect(call?.query.$count).toBe('true');
+    expect(call?.headers.ConsistencyLevel).toBe('eventual');
+    expect(resultOf(outcome)).toMatchObject({ items: [{ displayName: 'FIN-LAPTOP-01' }], total: 62 });
+  });
+
+  test('falls back to listing without a total when counting is rejected', async () => {
+    const { outcome } = await runCommand(
+      cmd('groups members'),
+      [GROUP_ID, '--transitive'],
+      [
+        groupRoute,
+        {
+          path: `/groups/${GROUP_ID}/transitiveMembers`,
+          reply: (r) => (r.query.$count ? graphError(400, 'Request_UnsupportedQuery', 'no count') : page([member])),
+        },
+      ],
+    );
+    const result = resultOf(outcome) as { items: unknown[]; total?: number };
+    expect(result.items).toHaveLength(1);
+    expect(result.total).toBeUndefined();
   });
 });

@@ -300,7 +300,7 @@ export class GraphClient {
     return results;
   }
 
-  /** Follow `@odata.nextLink` until `limit` items are collected. */
+  /** Follow `@odata.nextLink` until `limit` items are collected. `total` carries `@odata.count` when requested. */
   async list<T = Record<string, unknown>>(path: string, options: ListOptions = {}): Promise<ListResult<T>> {
     const limit = options.limit ?? 50;
     const pageSize = options.pageSize ?? 100;
@@ -308,16 +308,20 @@ export class GraphClient {
     if (pageSize !== false && query.$top === undefined) query.$top = Math.min(limit, pageSize);
     let next: string | undefined = this.url(path, { ...options, query });
     const items: T[] = [];
+    let total: number | undefined;
+    const done = (truncated: boolean): ListResult<T> =>
+      total === undefined ? { items, truncated } : { items, truncated, total };
     while (next) {
-      const page: { value?: T[]; '@odata.nextLink'?: string } = await this.get(next, options);
+      const page: { value?: T[]; '@odata.nextLink'?: string; '@odata.count'?: number } = await this.get(next, options);
+      if (total === undefined && typeof page['@odata.count'] === 'number') total = page['@odata.count'];
       for (const item of page.value ?? []) {
-        if (items.length >= limit) return { items, truncated: true };
+        if (items.length >= limit) return done(true);
         items.push(item);
       }
       next = page['@odata.nextLink'];
-      if (next && items.length >= limit) return { items, truncated: true };
+      if (next && items.length >= limit) return done(true);
     }
-    return { items, truncated: false };
+    return done(false);
   }
 
   /**

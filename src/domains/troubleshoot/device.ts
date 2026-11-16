@@ -1,15 +1,17 @@
 import { odata, seg } from '../../core/graph.ts';
 import { type AnyCommand, type Context, defineCommand } from '../../core/types.ts';
-import { bytesToGb, isSettledError, settle } from '../../core/util.ts';
+import { bytesToGb, isSettledError, settle, shellQuote } from '../../core/util.ts';
 import { commands as entraCommands } from '../entra/index.ts';
 import { type EntraDevice, shapeEntraDevice } from '../entra/directory.ts';
 import { DEVICES_PATH, deviceSummary } from '../intune/common.ts';
 import {
+  type ConfigProfileView,
   complianceSummary,
+  deviceConfigurationReport,
   devicePolicyStates,
+  groupReportRows,
   commands as intuneCommands,
   type ManagedDevice,
-  type PolicyState,
   type PolicyStateView,
   platformOf,
   resolveManagedDevice,
@@ -36,14 +38,6 @@ interface DeviceDetail {
 
 async function complianceStates(ctx: Context, deviceId: string): Promise<PolicyStateView[]> {
   return shapePolicyStates(await devicePolicyStates(ctx, deviceId));
-}
-
-async function configStates(ctx: Context, deviceId: string): Promise<PolicyStateView[]> {
-  const { items } = await ctx.graph.list<PolicyState>(`${DEVICES_PATH}/${seg(deviceId)}/deviceConfigurationStates`, {
-    limit: Number.POSITIVE_INFINITY,
-    pageSize: false,
-  });
-  return shapePolicyStates(items);
 }
 
 async function entraObject(ctx: Context, entraDeviceId: string): Promise<EntraDevice | null> {
@@ -83,7 +77,7 @@ function syncFindings(device: ManagedDevice, name: string): Finding[] {
       area: 'sync',
       issue: `Has not checked in with Intune for ${days} days`,
       detail: 'Compliance and policies reflect the last check-in. The device must be on, online and signed in to sync.',
-      next: `tenantctl intune devices sync "${name}"`,
+      next: `tenantctl intune devices sync ${shellQuote(name)}`,
     },
   ];
 }
@@ -98,8 +92,8 @@ function complianceFindings(device: ManagedDevice, policies: PolicyStateView[], 
       issue: `Device is ${device.complianceState ?? 'not compliant'}`,
       detail: complianceSummary(device, policies),
       next: failing.length
-        ? `tenantctl intune devices compliance "${name}"`
-        : `tenantctl intune devices sync "${name}"`,
+        ? `tenantctl intune devices compliance ${shellQuote(name)}`
+        : `tenantctl intune devices sync ${shellQuote(name)}`,
     },
   ];
 }
@@ -143,7 +137,7 @@ function entraFindings(device: ManagedDevice, entra: EntraDevice | null | undefi
       area: 'entra',
       issue: 'Intune says compliant but Entra ID still has it non-compliant',
       detail: 'The compliance result has not reached Entra ID yet; a sync usually resolves it.',
-      next: `tenantctl intune devices sync "${name}"`,
+      next: `tenantctl intune devices sync ${shellQuote(name)}`,
     });
   }
   return findings;
@@ -158,7 +152,7 @@ function hardwareFindings(device: ManagedDevice, detail: DeviceDetail | null, na
       area: 'security',
       issue: 'Disk is not encrypted',
       detail: 'Most compliance policies require BitLocker/FileVault.',
-      next: `tenantctl intune devices compliance "${name}"`,
+      next: `tenantctl intune devices compliance ${shellQuote(name)}`,
     });
   }
   if (detail?.jailBroken === 'True') {
@@ -180,13 +174,13 @@ function hardwareFindings(device: ManagedDevice, detail: DeviceDetail | null, na
       severity: ['wipe', 'retire', 'delete', 'fullScan'].includes(action.actionName ?? '') ? 'high' : 'info',
       area: 'actions',
       issue: `Remote action "${action.actionName}" is pending since ${action.startDateTime ?? 'unknown'}`,
-      next: `tenantctl intune devices actions "${name}"`,
+      next: `tenantctl intune devices actions ${shellQuote(name)}`,
     });
   }
   return findings;
 }
 
-function configFindings(policies: PolicyStateView[], name: string): Finding[] {
+function configFindings(policies: ConfigProfileView[], name: string): Finding[] {
   const broken = policies.filter((p) => BAD_STATES[p.state ?? '']);
   if (!broken.length) return [];
   return [
@@ -195,7 +189,7 @@ function configFindings(policies: PolicyStateView[], name: string): Finding[] {
       area: 'configuration',
       issue: `${broken.length} configuration profile${broken.length === 1 ? '' : 's'} in error or conflict`,
       detail: broken.map((p) => `${p.policy} (${p.state})`).join(', '),
-      next: `tenantctl intune devices config-states "${name}"`,
+      next: `tenantctl intune devices config-states ${shellQuote(name)}`,
     },
   ];
 }
@@ -242,7 +236,8 @@ export const commands: AnyCommand[] = [
       const hasEntraId = Boolean(device.azureADDeviceId) && !NO_ENTRA_ID.test(device.azureADDeviceId ?? '');
       const sections = await settle({
         compliance: complianceStates(ctx, device.id),
-        configuration: configStates(ctx, device.id),
+        // The portal's per-device report covers classic, settings catalog, ADMX and endpoint security policies.
+        configuration: deviceConfigurationReport(ctx, device.id).then<ConfigProfileView[]>(groupReportRows),
         detail: deviceDetail(ctx, device.id),
         entra: hasEntraId ? entraObject(ctx, device.azureADDeviceId as string) : Promise.resolve(undefined),
         signins: deviceSigninFailures(ctx, device, args.days),

@@ -103,10 +103,15 @@ export interface CommandSpec<T extends readonly ArgSpec[] = readonly ArgSpec[]> 
   readonly args: T;
   readonly risk: Risk;
   readonly permissions: Permissions;
-  run(ctx: Context, args: ArgsOf<T>): Promise<unknown>;
+  /**
+   * `approved` is the preview a person approved (destructive commands only). When it carries a `targetId`, act on
+   * that object only: check with `requireApprovedTarget` from safety.ts.
+   */
+  run(ctx: Context, args: ArgsOf<T>, approved?: unknown): Promise<unknown>;
   /**
    * Describe exactly what a write would do, resolving targets (ids, names, current state). Required for
-   * destructive commands; used by `--dry-run` and the confirmation step.
+   * destructive commands; used by `--dry-run` and the confirmation step. Include `targetId` (the resolved object's
+   * id) when the command acts on one object found by name, so approval and confirm tokens bind to it.
    */
   preview?(ctx: Context, args: ArgsOf<T>): Promise<unknown>;
 }
@@ -121,7 +126,7 @@ export interface AnyCommand {
   readonly args: readonly ArgSpec[];
   readonly risk: Risk;
   readonly permissions: Permissions;
-  run(ctx: Context, args: Record<string, unknown>): Promise<unknown>;
+  run(ctx: Context, args: Record<string, unknown>, approved?: unknown): Promise<unknown>;
   preview?(ctx: Context, args: Record<string, unknown>): Promise<unknown>;
 }
 
@@ -134,6 +139,10 @@ export interface ListResult<T = unknown> {
   readonly items: T[];
   /** More results exist beyond the requested limit. */
   readonly truncated: boolean;
+  /** Size of the whole collection when Graph reported it (`$count=true`); moved into the envelope's `meta`. */
+  readonly total?: number;
+  /** Sections Graph refused (e.g. a missing permission) while the rest was listed; moved into the envelope's `meta`. */
+  readonly unavailable?: readonly { section: string; error: { code: string; message: string } }[];
 }
 
 export function isListResult(value: unknown): value is ListResult {

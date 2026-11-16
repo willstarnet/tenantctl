@@ -3,8 +3,9 @@ import { existsSync, readFileSync } from 'node:fs';
 import { parseArgs } from '../src/core/args.ts';
 import { CliError } from '../src/core/errors.ts';
 import { parseCsv } from '../src/core/graph.ts';
+import { envelope } from '../src/core/output.ts';
 import { resolveUser } from '../src/core/resolve.ts';
-import { auditLogPath, issueConfirmToken, verifyConfirmToken } from '../src/core/safety.ts';
+import { auditLogPath, issueConfirmToken, requireApprovedTarget, verifyConfirmToken } from '../src/core/safety.ts';
 import { defineCommand } from '../src/core/types.ts';
 import { graphError, mockContext, page, runCommand } from './helpers/graphMock.ts';
 
@@ -41,6 +42,10 @@ describe('parseArgs', () => {
     expect(() => parseArgs(specs, [])).toThrow('Missing required');
     expect(() => parseArgs(specs, ['x', 'y'])).toThrow('Unexpected argument');
   });
+
+  test('choices match in any letter case and come back in the declared spelling', () => {
+    expect(parseArgs(specs, ['x', '--state', 'ON'])).toMatchObject({ state: 'on' });
+  });
 });
 
 describe('GraphClient', () => {
@@ -71,6 +76,29 @@ describe('GraphClient', () => {
     expect((error as CliError).code).toBe('FORBIDDEN');
     expect((error as CliError).requestId).toBe('test-request-id');
     expect(await ctx.graph.tryGet('/users/missing')).toBeNull();
+  });
+
+  test('list reports @odata.count as total, and the envelope says how many of the total are shown', async () => {
+    const { ctx } = mockContext([
+      {
+        path: '/groups/g/members',
+        reply: {
+          body: {
+            '@odata.count': 62,
+            value: [{ id: '1' }, { id: '2' }],
+            '@odata.nextLink': 'https://graph.test/v1.0/groups/g/members?$skiptoken=x',
+          },
+        },
+      },
+    ]);
+    const result = await ctx.graph.list('/groups/g/members', { query: { $count: true }, limit: 2 });
+    expect(result).toEqual({ items: [{ id: '1' }, { id: '2' }], truncated: true, total: 62 });
+    expect(envelope('entra groups members', result).meta).toEqual({
+      count: 2,
+      total: 62,
+      truncated: true,
+      hint: '2 of 62 shown: raise --top or pass --all.',
+    });
   });
 
   test('parseCsv handles BOM, quotes, embedded commas and CRLF', () => {
@@ -120,9 +148,10 @@ describe('write gating and confirmation', () => {
   });
 
   test('writes disabled by default', async () => {
+    const start = runs;
     const error = (await runCommand(wipe, ['pc1'], []).catch((e: unknown) => e)) as CliError;
     expect(error.code).toBe('WRITES_DISABLED');
-    expect(runs).toBe(0);
+    expect(runs).toBe(start);
   });
 
   test('dry run previews even with writes disabled', async () => {
@@ -134,9 +163,12 @@ describe('write gating and confirmation', () => {
   });
 
   test('destructive needs a token bound to the same args; the token then executes it', async () => {
+    // The audit log is shared by every test in the process; only look at what this test appends.
+    const before = existsSync(auditLogPath()) ? readFileSync(auditLogPath(), 'utf8').length : 0;
+    const start = runs;
     const first = await runCommand(wipe, ['pc1'], [], { allowWrites: true });
     expect(first.outcome.kind).toBe('confirm');
-    expect(runs).toBe(0);
+    expect(runs).toBe(start);
     const token = first.outcome.kind === 'confirm' ? first.outcome.token : '';
     const wrongTarget = (await runCommand(wipe, ['pc2'], [], { allowWrites: true, confirm: token }).catch(
       (e: unknown) => e,
@@ -144,8 +176,9 @@ describe('write gating and confirmation', () => {
     expect(wrongTarget.code).toBe('CONFIRM_INVALID');
     const second = await runCommand(wipe, ['pc1'], [], { allowWrites: true, confirm: token });
     expect(second.outcome).toEqual({ kind: 'result', result: { done: true } });
-    expect(runs).toBe(1);
+    expect(runs).toBe(start + 1);
     const log = readFileSync(auditLogPath(), 'utf8')
+      .slice(before)
       .trim()
       .split('\n')
       .map((l) => JSON.parse(l) as { outcome: string });
@@ -156,6 +189,48 @@ describe('write gating and confirmation', () => {
     const binding = { command: 'test wipe', profile: 'p', args: { device: 'pc1' } };
     const { token } = issueConfirmToken(binding, Date.now() - 11 * 60 * 1000);
     expect(() => verifyConfirmToken(token, binding)).toThrow('expired');
+  });
+
+  test('a run that resolves a different object than the approved preview changes nothing', async () => {
+    // The name "pc1" points at one device during the preview and at another by the time it runs.
+    let resolves = 0;
+    let deleted = 0;
+    const remove = defineCommand({
+      domain: 'test',
+      name: 'remove',
+      summary: 'remove',
+      args: [{ name: 'device', type: 'string', required: true, positional: true, description: '' }],
+      risk: 'destructive',
+      permissions: { application: ['X.ReadWrite.All'] },
+      preview: async () => ({ action: 'remove', targetId: `obj-${++resolves}` }),
+      run: async (_ctx, _args, approved) => {
+        requireApprovedTarget(approved, `obj-${++resolves}`, 'device');
+        deleted++;
+        return {};
+      },
+    });
+    const run = runCommand(remove, ['pc1'], [], { allowWrites: true, profile: { confirmMode: 'tty' } });
+    await expect(run).rejects.toMatchObject({ code: 'DENIED', message: expect.stringContaining('changed after') });
+    expect(deleted).toBe(0);
+  });
+
+  test('a confirm token is bound to the object its preview resolved', async () => {
+    let target = 'obj-1';
+    const remove = defineCommand({
+      domain: 'test',
+      name: 'remove',
+      summary: 'remove',
+      args: [{ name: 'device', type: 'string', required: true, positional: true, description: '' }],
+      risk: 'destructive',
+      permissions: { application: ['X.ReadWrite.All'] },
+      preview: async () => ({ action: 'remove', targetId: target }),
+      run: async () => ({}),
+    });
+    const first = await runCommand(remove, ['pc1'], [], { allowWrites: true });
+    const token = first.outcome.kind === 'confirm' ? first.outcome.token : '';
+    target = 'obj-2';
+    const second = runCommand(remove, ['pc1'], [], { allowWrites: true, confirm: token });
+    await expect(second).rejects.toMatchObject({ code: 'CONFIRM_INVALID' });
   });
 
   test('FORBIDDEN errors gain a permission hint for the command', async () => {

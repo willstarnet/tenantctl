@@ -151,12 +151,20 @@ export function approverFor(mode: ConcreteMode): Approver {
   return async (summary) => dialogApprove(summary);
 }
 
-/** Plain-text summary of a preview for a dialog or terminal prompt, bounded so dialogs stay readable. */
+/**
+ * Plain-text summary of a preview for a dialog or terminal prompt, bounded so dialogs stay readable. `action` and
+ * every `warnings` entry are shown in full first; only the remaining detail is cut.
+ */
 export function approvalSummary(commandId: string, profileLabel: string, preview: unknown): string {
   const lines = [`tenantctl ${commandId}`, `Tenant/profile: ${profileLabel}`];
   if (preview && typeof preview === 'object') {
     const action = 'action' in preview && typeof preview.action === 'string' ? preview.action : null;
     if (action) lines.push('', action);
+    const warnings =
+      'warnings' in preview && Array.isArray(preview.warnings)
+        ? preview.warnings.filter((w): w is string => typeof w === 'string')
+        : [];
+    if (warnings.length) lines.push('', ...warnings.map((w) => `! ${w}`));
     const detail = JSON.stringify(preview, null, 1).replace(/\n\s*/g, ' ');
     lines.push('', detail.length > 700 ? `${detail.slice(0, 699)}…` : detail);
   }

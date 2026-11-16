@@ -3,7 +3,7 @@ import { odata, seg } from '../../core/graph.ts';
 import { listLimit, LIST_ARGS } from '../../core/listing.ts';
 import { resolveUser } from '../../core/resolve.ts';
 import { type AnyCommand, type Context, defineCommand, type ListResult } from '../../core/types.ts';
-import { settle } from '../../core/util.ts';
+import { settle, shellQuote } from '../../core/util.ts';
 import { commands as callCommands } from './calls.ts';
 import { IS_TEAM_FILTER, resolveChannel, resolveTeam, type ResolvedTeam, TEAM_GROUP_SELECT } from './resolve.ts';
 
@@ -581,7 +581,7 @@ export const commands: AnyCommand[] = [
         visibility: args.visibility,
         owner: owner?.userPrincipalName ?? null,
         note: 'Provisioning runs in the background and can take a few minutes.',
-        next: operation.check ?? `tenantctl teams get "${args.name}"`,
+        next: operation.check ?? `tenantctl teams get ${shellQuote(args.name)}`,
       };
     },
   }),

@@ -3,7 +3,7 @@ import { odata, seg } from '../../core/graph.ts';
 import { LIST_ARGS, listLimit } from '../../core/listing.ts';
 import { resolveUser } from '../../core/resolve.ts';
 import { type AnyCommand, type Context, defineCommand } from '../../core/types.ts';
-import { bytesToGb, compact, daysAgo, settle } from '../../core/util.ts';
+import { attempt, bytesToGb, compact, daysAgo, settle } from '../../core/util.ts';
 import {
   DEVICES_PATH,
   type DeviceClause,
@@ -188,6 +188,203 @@ function requireEntraId(device: ManagedDevice, what: string): string {
     });
   }
   return device.azureADDeviceId;
+}
+
+/** Every policy family the Intune portal shows on a device's "Device configuration" blade. */
+const CONFIG_REPORT_KINDS: Record<string, string> = {
+  'Microsoft.Management.Services.Api.DeviceConfiguration': 'profile',
+  DeviceManagementConfigurationPolicy: 'settingsCatalog',
+  DeviceConfigurationAdmxPolicy: 'admx',
+  'Microsoft.Management.Services.Api.DeviceManagementIntent': 'endpointSecurity',
+};
+
+/**
+ * Report `PolicyStatus` codes follow Graph's complianceStatus enum (unknown 0, notApplicable 1, compliant 2,
+ * remediated 3, nonCompliant 4, error 5, conflict 6, notAssigned 7:
+ * https://learn.microsoft.com/en-us/graph/api/resources/intune-shared-compliancestatus). The report itself is
+ * undocumented, so the raw code is kept next to the name as `statusCode`. The portal shows 2 and 3 as Succeeded
+ * and 4 and 5 as Error for configuration policies.
+ */
+const REPORT_STATUS: Record<number, string> = {
+  0: 'unknown',
+  1: 'notApplicable',
+  2: 'succeeded',
+  3: 'succeeded',
+  4: 'error',
+  5: 'error',
+  6: 'conflict',
+  7: 'notAssigned',
+};
+
+/** Which user context wins when one policy reports several: the worst one. */
+const STATE_RANK: Record<string, number> = {
+  error: 5,
+  conflict: 4,
+  unknown: 2,
+  succeeded: 1,
+  notAssigned: 0,
+  notApplicable: 0,
+};
+
+const PROBLEM_STATES: Record<string, true> = { error: true, conflict: true };
+const REPORT_PAGE = 100;
+const REPORT_MAX_PAGES = 50;
+
+export interface ReportRow {
+  IntuneDeviceId?: string;
+  PolicyBaseTypeName?: string;
+  PolicyId?: string;
+  PolicyName?: string;
+  PolicyStatus?: number;
+  UPN?: string | null;
+  UserId?: string | null;
+  PspdpuLastModifiedTimeUtc?: string | null;
+  /** `SettingsCatalog`, or the endpoint security / baseline template (`MicrosoftDefenderAntivirus`...). */
+  UnifiedPolicyType?: string | null;
+  UnifiedPolicyType_loc?: string | null;
+  [column: string]: unknown;
+}
+
+/**
+ * Settings catalog and endpoint security policies share the configurationPolicy base type; the report tells them
+ * apart by UnifiedPolicyType, which is `SettingsCatalog` only for plain settings catalog policies.
+ */
+function reportKind(row: ReportRow): string {
+  const kind = CONFIG_REPORT_KINDS[row.PolicyBaseTypeName ?? ''];
+  if (!kind) return row.PolicyBaseTypeName || 'unknown';
+  if (kind === 'settingsCatalog' && row.UnifiedPolicyType && row.UnifiedPolicyType !== 'SettingsCatalog') {
+    return 'endpointSecurity';
+  }
+  return kind;
+}
+
+interface ReportPage {
+  TotalRowCount?: number;
+  Schema?: { Column: string; PropertyType?: string }[];
+  Values?: unknown[][];
+}
+
+/** Intune report actions stream JSON, sometimes as `application/octet-stream`, so GraphClient hands back a string. */
+function parseReport(body: unknown): ReportPage {
+  if (typeof body !== 'string') return (body ?? {}) as ReportPage;
+  try {
+    return JSON.parse(body) as ReportPage;
+  } catch {
+    throw new CliError('GRAPH_ERROR', `Intune returned an unreadable report: ${body.slice(0, 200)}`);
+  }
+}
+
+/** Turn `{ Schema, Values }` into one object per row keyed by column name. */
+function reportRows(page: ReportPage): ReportRow[] {
+  const columns = (page.Schema ?? []).map((c) => c.Column);
+  return (page.Values ?? []).map((values) => {
+    const row: ReportRow = {};
+    columns.forEach((column, index) => {
+      row[column] = values[index];
+    });
+    return row;
+  });
+}
+
+/** Every configuration policy row the Intune portal shows for one device, one row per policy per user context. */
+export async function deviceConfigurationReport(ctx: Context, deviceId: string): Promise<ReportRow[]> {
+  const types = Object.keys(CONFIG_REPORT_KINDS)
+    .map((type) => `(PolicyBaseTypeName eq ${odata(type)})`)
+    .join(' or ');
+  const rows: ReportRow[] = [];
+  for (let page = 0; page < REPORT_MAX_PAGES; page++) {
+    const result = parseReport(
+      await ctx.graph.post(
+        '/deviceManagement/reports/getConfigurationPoliciesReportForDevice',
+        {
+          select: [
+            'IntuneDeviceId',
+            'PolicyBaseTypeName',
+            'PolicyId',
+            'PolicyStatus',
+            'UPN',
+            'UserId',
+            'PspdpuLastModifiedTimeUtc',
+            'PolicyName',
+            'UnifiedPolicyType',
+          ],
+          filter: `(${types}) and (IntuneDeviceId eq ${odata(deviceId)})`,
+          skip: rows.length,
+          top: REPORT_PAGE,
+          orderBy: ['PolicyName'],
+        },
+        { version: 'beta' },
+      ),
+    );
+    const batch = reportRows(result);
+    rows.push(...batch);
+    const total = result.TotalRowCount;
+    // Trust TotalRowCount when Intune sends it; without one, a short page is the last page.
+    if (!batch.length || (typeof total === 'number' ? rows.length >= total : batch.length < REPORT_PAGE)) return rows;
+  }
+  ctx.log(`The device report has more than ${rows.length} rows; showing the first ${rows.length}.`);
+  return rows;
+}
+
+interface UserContext {
+  user: string | null;
+  userId: string | null;
+  state: string;
+  statusCode: number | null;
+  lastReported: string | null;
+}
+
+export interface ConfigProfileView {
+  policy: string;
+  policyId: string;
+  kind: string;
+  /** The portal's policy type ("Settings catalog", "Microsoft Defender Antivirus"...). */
+  type?: string;
+  state: string;
+  statusCode: number | null;
+  lastReported: string | null;
+  users: UserContext[];
+  failingSettings?: SettingView[] | { error: { code: string; message: string } };
+}
+
+/** One entry per policy, keeping every user context it reported under; `state` is the worst of them. */
+export function groupReportRows(rows: ReportRow[]): ConfigProfileView[] {
+  const byPolicy = new Map<string, ConfigProfileView>();
+  for (const row of rows) {
+    const id = String(row.PolicyId ?? '');
+    const code = typeof row.PolicyStatus === 'number' ? row.PolicyStatus : null;
+    const state = code === null ? 'unknown' : (REPORT_STATUS[code] ?? 'unknown');
+    const context: UserContext = {
+      user: row.UPN || null,
+      userId: row.UserId || null,
+      state,
+      statusCode: code,
+      lastReported: row.PspdpuLastModifiedTimeUtc || null,
+    };
+    const entry = byPolicy.get(id);
+    if (!entry) {
+      byPolicy.set(id, {
+        policy: row.PolicyName || id,
+        policyId: id,
+        kind: reportKind(row),
+        type: row.UnifiedPolicyType_loc || row.UnifiedPolicyType || undefined,
+        state,
+        statusCode: code,
+        lastReported: context.lastReported,
+        users: [context],
+      });
+      continue;
+    }
+    entry.users.push(context);
+    if (context.lastReported && context.lastReported > (entry.lastReported ?? '')) {
+      entry.lastReported = context.lastReported;
+    }
+    if ((STATE_RANK[state] ?? 0) > (STATE_RANK[entry.state] ?? 0)) {
+      entry.state = state;
+      entry.statusCode = code;
+    }
+  }
+  return [...byPolicy.values()];
 }
 
 export const commands: AnyCommand[] = [
@@ -392,12 +589,16 @@ export const commands: AnyCommand[] = [
   defineCommand({
     domain: 'intune',
     name: 'devices config-states',
-    summary: 'Show configuration profile states on a device, with errors and conflicts first',
+    summary: 'Show every configuration policy on a device (profiles, settings catalog, ADMX, endpoint security)',
     description:
-      'Use when a setting (Wi-Fi, VPN, BitLocker, restrictions) did not apply to a device. `problems` lists ' +
-      'profiles in error or conflict with their failing settings; a conflict means two profiles set the same ' +
-      'setting to different values. Covers classic configuration profiles; settings catalog policies may not ' +
-      'appear here.',
+      'Use when a setting (Wi-Fi, VPN, BitLocker, restrictions, Defender) did not apply to a device. Reads the ' +
+      'same per-device report as the Intune admin center (beta reports API, undocumented), so it covers classic ' +
+      'profiles, settings catalog, administrative templates (ADMX) and endpoint security policies; `kind` says ' +
+      'which. `problems` lists policies in error or conflict (a conflict means two policies set the same setting ' +
+      'differently); classic profiles there carry their failing settings. `users` lists each user context the ' +
+      'policy reported under (empty user = device context); `state` is the worst of them. `statusCode` is the ' +
+      "report's raw PolicyStatus: Microsoft does not document it, and the state names are mapped from what the " +
+      'portal shows. Per-setting detail for non-classic policies is in the Intune admin center.',
     examples: ['tenantctl intune devices config-states DESKTOP-4F2K9'],
     args: [DEVICE_ARG],
     risk: 'read',
@@ -408,25 +609,34 @@ export const commands: AnyCommand[] = [
     },
     async run(ctx, args) {
       const device = await resolveManagedDevice(ctx, args.device);
-      const { items } = await ctx.graph.list<PolicyState>(
-        `${DEVICES_PATH}/${seg(device.id)}/deviceConfigurationStates`,
-        {
-          limit: Number.POSITIVE_INFINITY,
-          pageSize: false,
-        },
-      );
-      if (ctx.full) return { device, configurationStates: items };
-      const profiles = shapePolicyStates(items);
-      const problems = profiles.filter((p) => FAILING_STATES[p.state ?? '']);
+      const rows = await deviceConfigurationReport(ctx, device.id);
+      if (ctx.full) return { device, rows };
+      const profiles = groupReportRows(rows);
+      const problems = profiles.filter((p) => PROBLEM_STATES[p.state]);
+      // Only classic profiles have per-setting state on the device; this call throttles, so skip it unless needed.
+      const classic = problems.filter((p) => p.kind === 'profile');
+      if (classic.length) {
+        const states = await attempt(
+          ctx.graph.list<PolicyState>(`${DEVICES_PATH}/${seg(device.id)}/deviceConfigurationStates`, {
+            limit: Number.POSITIVE_INFINITY,
+            pageSize: false,
+          }),
+        );
+        const byId = new Map(
+          'error' in states ? [] : shapePolicyStates(states.items).map((s) => [s.policyId, s.failingSettings]),
+        );
+        for (const problem of classic) {
+          problem.failingSettings = 'error' in states ? states : (byId.get(problem.policyId) ?? []);
+        }
+      }
       return {
         device: deviceSummary(device),
         counts: profiles.reduce<Record<string, number>>((acc, p) => {
-          const state = p.state ?? 'unknown';
-          acc[state] = (acc[state] ?? 0) + 1;
+          acc[p.state] = (acc[p.state] ?? 0) + 1;
           return acc;
         }, {}),
         problems,
-        profiles: profiles.filter((p) => !FAILING_STATES[p.state ?? '']).map(({ failingSettings: _, ...rest }) => rest),
+        profiles: profiles.filter((p) => !PROBLEM_STATES[p.state]),
       };
     },
   }),
