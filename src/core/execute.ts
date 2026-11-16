@@ -5,7 +5,14 @@ import { DEFAULT_GRAPH_URL, type Profile, readSecrets, writesEnabled } from './c
 import { CliError } from './errors.ts';
 import { createExoRunner, type ExoRunner } from './exo.ts';
 import { GraphClient } from './graph.ts';
-import { appendAudit, issueConfirmToken, redactArgs, verifyConfirmToken, type ConfirmBinding } from './safety.ts';
+import {
+  appendAudit,
+  type ConfirmBinding,
+  issueConfirmToken,
+  previewTarget,
+  redactArgs,
+  verifyConfirmToken,
+} from './safety.ts';
 import type { AnyCommand, Context } from './types.ts';
 
 const DEFENDER_API = 'https://api.security.microsoft.com/api';
@@ -173,11 +180,19 @@ export async function execute(
       args: redactArgs(command.args, args),
     };
 
+    let approved: unknown;
     if (command.risk === 'destructive') {
+      const shown = await preview();
+      const target = previewTarget(shown);
       if (effectiveConfirmMode(env.profile) === 'token') {
-        const binding: ConfirmBinding = { command: commandId, profile: env.profileName, tenant: audit.tenant, args };
+        const binding: ConfirmBinding = {
+          command: commandId,
+          profile: env.profileName,
+          tenant: audit.tenant,
+          args,
+          ...(target ? { target } : {}),
+        };
         if (!options.confirm) {
-          const shown = await preview();
           const { token, expiresAt } = issueConfirmToken(binding);
           appendAudit({ ...audit, outcome: 'confirmation_issued' });
           return { kind: 'confirm', preview: shown, token, expiresAt };
@@ -185,17 +200,18 @@ export async function execute(
         verifyConfirmToken(options.confirm, binding);
       }
       const label = `${env.profileName}${audit.tenant ? ` (${audit.tenant})` : ''}`;
-      const summary = approvalSummary(commandId, label, await preview());
+      const summary = approvalSummary(commandId, label, shown);
       try {
         await ctx.requireApproval(summary);
       } catch (error) {
         if (error instanceof CliError && error.code === 'DENIED') appendAudit({ ...audit, outcome: 'denied' });
         throw error;
       }
+      approved = shown;
     }
 
     try {
-      const result = await command.run(ctx, args);
+      const result = await command.run(ctx, args, approved);
       appendAudit({ ...audit, outcome: 'success' });
       return { kind: 'result', result };
     } catch (error) {

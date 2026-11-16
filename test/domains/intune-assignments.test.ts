@@ -112,7 +112,7 @@ describe('intune apps assign / unassign', () => {
     });
     expect(second.outcome).toMatchObject({
       kind: 'result',
-      result: { status: 'assigned', next: 'tenantctl intune apps status "Zoom Workplace"' },
+      result: { status: 'assigned', next: "tenantctl intune apps status 'Zoom Workplace'" },
     });
   });
 
@@ -158,6 +158,21 @@ describe('intune apps assign / unassign', () => {
         ],
       },
     });
+  });
+
+  test('read-only source fields are not sent back, and policy-set assignments are left alone', async () => {
+    const direct = [{ id: 'a-2', intent: 'required', target: groupTarget(KIOSK.id), source: 'direct', sourceId: null }];
+    const argv = ['Zoom', '--intent', 'required', '--group', 'Sales Laptops'];
+    const first = await runCommand(cmd('apps assign'), argv, appRoutes(direct), { allowWrites: true });
+    const token = first.outcome.kind === 'confirm' ? first.outcome.token : '';
+    const second = await runCommand(cmd('apps assign'), argv, appRoutes(direct), { allowWrites: true, confirm: token });
+    const sent = second.calls.find((c) => c.path.endsWith('/assign'))?.body as { mobileAppAssignments: object[] };
+    expect(sent.mobileAppAssignments[0]).not.toHaveProperty('source');
+    expect(sent.mobileAppAssignments[0]).not.toHaveProperty('sourceId');
+
+    const fromSet = [{ ...direct[0], source: 'policySets', sourceId: 'set-1' }];
+    const refused = runCommand(cmd('apps assign'), argv, appRoutes(fromSet), { allowWrites: true, dryRun: true });
+    await expect(refused).rejects.toMatchObject({ code: 'USAGE', message: expect.stringContaining('policy set') });
   });
 });
 

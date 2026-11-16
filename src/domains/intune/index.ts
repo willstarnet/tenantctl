@@ -6,6 +6,9 @@ import { commands as devices } from './devices.ts';
 import { commands as enrollment } from './enrollment.ts';
 import { commands as filters } from './filters.ts';
 import { commands as policies } from './policies.ts';
+import { commands as scripts } from './scripts.ts';
+import { commands as tenant } from './tenant.ts';
+import { commands as updates } from './updates.ts';
 
 export { type ManagedDevice, platformOf, resolveManagedDevice, shapeManagedDevice } from './common.ts';
 export {
@@ -27,4 +30,7 @@ export const commands: AnyCommand[] = [
   ...filters,
   ...autopilot,
   ...enrollment,
+  ...scripts,
+  ...updates,
+  ...tenant,
 ];

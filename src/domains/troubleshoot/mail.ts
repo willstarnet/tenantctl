@@ -1,7 +1,7 @@
 import { odata, seg } from '../../core/graph.ts';
 import { resolveUser } from '../../core/resolve.ts';
 import { type AnyCommand, type Context, defineCommand } from '../../core/types.ts';
-import { isSettledError, settle } from '../../core/util.ts';
+import { isSettledError, settle, shellQuote } from '../../core/util.ts';
 import {
   buildTraceFilter,
   commands as exchangeCommands,
@@ -78,7 +78,7 @@ function traceFindings(
   for (const trace of traces) {
     const status = trace.status ?? 'unknown';
     const lastEvent = details[trace.id]?.at(-1)?.description;
-    const next = `tenantctl exchange trace details ${trace.id} --recipient ${trace.recipientAddress ?? recipient}`;
+    const next = `tenantctl exchange trace details ${shellQuote(trace.id)} --recipient ${shellQuote(trace.recipientAddress ?? recipient)}`;
     if (status === 'failed') {
       findings.push({
         severity: 'high',
@@ -102,7 +102,7 @@ function traceFindings(
         area: 'delivery',
         issue: `Delivered to Junk Email: ${describe(trace)}`,
         detail: lastEvent ?? 'Marked as spam by filtering.',
-        next: `tenantctl exchange messages search ${recipient} --folder junk --from ${trace.senderAddress ?? '<sender>'}`,
+        next: `tenantctl exchange messages search ${shellQuote(recipient)} --folder junk --from ${trace.senderAddress ? shellQuote(trace.senderAddress) : '<sender>'}`,
       });
     } else if (status === 'pending' || status === 'gettingStatus') {
       findings.push({
@@ -121,7 +121,7 @@ function traceFindings(
       area: 'delivery',
       issue: `${delivered.length} message${delivered.length === 1 ? ' was' : 's were'} delivered to the mailbox`,
       detail: 'If the user cannot see it, check inbox rules (below), Junk, Focused/Other and Deleted Items.',
-      next: `tenantctl exchange messages search ${recipient}${delivered[0]?.senderAddress ? ` --from ${delivered[0].senderAddress}` : ''}`,
+      next: `tenantctl exchange messages search ${shellQuote(recipient)}${delivered[0]?.senderAddress ? ` --from ${shellQuote(delivered[0].senderAddress)}` : ''}`,
     });
   }
   return findings;
@@ -137,7 +137,7 @@ function ruleFindings(rules: ShapedInboxRule[], recipient: string): Finding[] {
       detail: [r.conditions.length ? `When: ${r.conditions.join('; ')}.` : 'Applies to all mail.', r.reason]
         .filter(Boolean)
         .join(' '),
-      next: `tenantctl exchange rules list ${recipient}`,
+      next: `tenantctl exchange rules list ${shellQuote(recipient)}`,
     }));
 }
 

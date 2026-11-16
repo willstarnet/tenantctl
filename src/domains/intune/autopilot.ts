@@ -1,10 +1,12 @@
+import { createHash } from 'node:crypto';
 import { readCsvRows } from '../../core/csvInput.ts';
 import { CliError } from '../../core/errors.ts';
 import { odata, seg } from '../../core/graph.ts';
 import { LIST_ARGS, listLimit } from '../../core/listing.ts';
 import { pickOne, type ResolvedGroup, resolveGroup, resolveUser } from '../../core/resolve.ts';
+import { requireApprovedTarget } from '../../core/safety.ts';
 import { type AnyCommand, type Context, defineCommand, type ListResult } from '../../core/types.ts';
-import { compact, daysAgo, daysSince, isGuid, settle } from '../../core/util.ts';
+import { compact, daysAgo, daysSince, isGuid, settle, shellQuote } from '../../core/util.ts';
 import { type Assignment, assignmentGroupNames, memberCount, shapeAssignment } from './assignments.ts';
 import {
   DEVICE_SELECT,
@@ -54,7 +56,6 @@ export interface AutopilotDevice {
 }
 
 const lower = (value: string | null | undefined) => (value ?? '').toLowerCase();
-const quoted = (value: string) => (/[\s"']/.test(value) ? `"${value.replace(/"/g, '\\"')}"` : value);
 
 /** Autopilot reports "no link" as the all-zero GUID. */
 function realId(value: unknown): string | null {
@@ -62,6 +63,23 @@ function realId(value: unknown): string | null {
 }
 
 const entraId = (d: AutopilotDevice) => realId(d.azureAdDeviceId) ?? realId(d.azureActiveDirectoryDeviceId);
+
+/**
+ * Autopilot registrations linked to an Entra device id. The Autopilot service rejects `eq` filters on these ids
+ * (only `contains(serialNumber,...)` works), so this pages client-side; tenants have hundreds, not thousands.
+ */
+export async function autopilotByEntraId(ctx: Context, deviceId: string): Promise<AutopilotDevice[]> {
+  const wanted = deviceId.toLowerCase();
+  const { items } = await scan<AutopilotDevice>(
+    ctx,
+    AUTOPILOT_DEVICES_PATH,
+    {},
+    (d) => lower(entraId(d)) === wanted,
+    5,
+    'beta',
+  );
+  return items;
+}
 const label = (d: AutopilotDevice) => d.serialNumber || d.id;
 
 export function shapeAutopilotDevice(d: AutopilotDevice) {
@@ -127,10 +145,15 @@ async function viaIntune(ctx: Context, ref: string): Promise<AutopilotDevice> {
 
 /**
  * Find one Windows Autopilot device identity from what a person would say: serial number (exact, case-insensitive;
- * a unique partial serial also matches), Autopilot identity id, the linked Intune managed device id or Entra device
- * id, or the Intune device name (resolved to its serial). Several matches are AMBIGUOUS.
+ * for reads a unique partial serial also matches), Autopilot identity id, the linked Intune managed device id or
+ * Entra device id, or the Intune device name (resolved to its serial). Several matches are AMBIGUOUS. Commands that
+ * change a device pass `exact` so a partial serial never selects it.
  */
-export async function resolveAutopilotDevice(ctx: Context, ref: string): Promise<AutopilotDevice> {
+export async function resolveAutopilotDevice(
+  ctx: Context,
+  ref: string,
+  options: { exact?: boolean } = {},
+): Promise<AutopilotDevice> {
   const value = ref.trim();
   if (!value) throw new CliError('USAGE', 'A device is required');
   if (isGuid(value)) {
@@ -161,8 +184,13 @@ export async function resolveAutopilotDevice(ctx: Context, ref: string): Promise
   const candidates = await bySerial(ctx, value);
   const exact = candidates.filter((d) => lower(d.serialNumber) === lower(value));
   if (exact.length) return pickOne(exact, value, 'Autopilot device', (d) => [d.serialNumber], describeAutopilot);
-  if (candidates.length) {
+  if (candidates.length && !options.exact) {
     return pickOne(candidates, value, 'Autopilot device', (d) => [d.serialNumber], describeAutopilot);
+  }
+  if (candidates.length) {
+    throw new CliError('USAGE', `"${value}" is only part of a serial number; changes need the whole serial`, {
+      hint: `Matching serials: ${candidates.map((d) => d.serialNumber).join(', ')}`,
+    });
   }
   return viaIntune(ctx, value);
 }
@@ -231,7 +259,7 @@ async function planUpdate(ctx: Context, args: UpdateArgs): Promise<UpdatePlan> {
     });
   }
   const [device, user] = await Promise.all([
-    resolveAutopilotDevice(ctx, args.device),
+    resolveAutopilotDevice(ctx, args.device, { exact: true }),
     args.user ? resolveUser(ctx, args.user) : Promise.resolve(undefined),
   ]);
   const changes: Change[] = [];
@@ -294,7 +322,7 @@ function deleteAction(device: AutopilotDevice): string {
 
 /** Microsoft's deregistration order: delete the Intune record first, then the Autopilot registration. */
 async function planDelete(ctx: Context, ref: string) {
-  const device = await resolveAutopilotDevice(ctx, ref);
+  const device = await resolveAutopilotDevice(ctx, ref, { exact: true });
   const records = await intuneRecords(ctx, device);
   if (records.length) {
     const first = records[0] as ManagedDevice;
@@ -374,6 +402,11 @@ export function readImportCsv(path: string, groupTag?: string): ImportRow[] {
     );
   }
   return out;
+}
+
+/** Digest of the validated rows: approval of an import binds to it, so a file edited after the preview is refused. */
+function importFingerprint(rows: ImportRow[]): string {
+  return createHash('sha256').update(JSON.stringify(rows)).digest('hex');
 }
 
 function importBody(rows: ImportRow[]) {
@@ -613,7 +646,7 @@ async function planProfile(
         'NOT_FOUND',
         `${name} is not ${target.kind === 'exclude' ? 'excluding' : 'assigned to'} ${target.group.displayName}`,
         {
-          hint: `See its assignments with \`tenantctl intune autopilot profiles get ${quoted(profile.displayName ?? profile.id)}\`.`,
+          hint: `See its assignments with \`tenantctl intune autopilot profiles get ${shellQuote(profile.displayName ?? profile.id)}\`.`,
         },
       );
     }
@@ -632,7 +665,7 @@ async function planProfile(
         'USAGE',
         `${target.group.displayName} is already ${kindOf(existing) === 'exclude' ? 'excluded from' : 'assigned to'} ${name}`,
         {
-          hint: `Remove that first with \`tenantctl intune autopilot profiles unassign ${quoted(profile.displayName ?? profile.id)} --${kindOf(existing) === 'exclude' ? 'exclude' : 'group'} ${quoted(target.group.displayName)}\`.`,
+          hint: `Remove that first with \`tenantctl intune autopilot profiles unassign ${shellQuote(profile.displayName ?? profile.id)} --${kindOf(existing) === 'exclude' ? 'exclude' : 'group'} ${shellQuote(target.group.displayName)}\`.`,
         },
       );
     }
@@ -924,7 +957,7 @@ export const commands: AnyCommand[] = [
       { name: 'clearUser', type: 'boolean', description: 'Remove the assigned user.' },
       { name: 'displayName', type: 'string', description: 'Device name applied during Autopilot.' },
     ],
-    risk: 'write',
+    risk: 'destructive',
     permissions: {
       delegated: [WRITE_SERVICE_CONFIG, READ_DEVICES, 'User.Read.All'],
       application: [WRITE_SERVICE_CONFIG, READ_DEVICES, 'User.Read.All'],
@@ -934,13 +967,15 @@ export const commands: AnyCommand[] = [
       const plan = await planUpdate(ctx, args);
       return {
         action: plan.action,
+        targetId: plan.device.id,
         device: describeAutopilot(plan.device),
         changes: plan.changes,
         requests: updateRequests(plan),
       };
     },
-    async run(ctx, args) {
+    async run(ctx, args, approved) {
       const plan = await planUpdate(ctx, args);
+      requireApprovedTarget(approved, plan.device.id, 'Autopilot device');
       const view = { action: plan.action, device: describeAutopilot(plan.device), changes: plan.changes };
       if (!plan.changes.length) return { status: 'unchanged', ...view };
       if (plan.unassignUser) {
@@ -952,7 +987,7 @@ export const commands: AnyCommand[] = [
       return {
         status: 'updated',
         ...view,
-        next: `Check profileStatus with \`tenantctl intune autopilot get ${label(plan.device)}\`; a new group tag can take a while to change the assigned profile.`,
+        next: `Check profileStatus with \`tenantctl intune autopilot get ${shellQuote(label(plan.device))}\`; a new group tag can take a while to change the assigned profile.`,
       };
     },
   }),
@@ -987,13 +1022,15 @@ export const commands: AnyCommand[] = [
       const plan = await planDelete(ctx, args.device);
       return {
         action: plan.action,
+        targetId: plan.device.id,
         device: shapeAutopilotDevice(plan.device),
         intuneDevice: null,
         requests: plan.requests,
       };
     },
-    async run(ctx, args) {
+    async run(ctx, args, approved) {
       const plan = await planDelete(ctx, args.device);
+      requireApprovedTarget(approved, plan.device.id, 'Autopilot device');
       if (plan.device.userPrincipalName) {
         await ctx.graph.post(`${devicePath(plan.device)}/unassignUserFromDevice`, undefined);
       }
@@ -1002,7 +1039,7 @@ export const commands: AnyCommand[] = [
         status: 'deleted',
         action: plan.action,
         device: describeAutopilot(plan.device),
-        next: `Run \`tenantctl intune autopilot sync\`, then \`tenantctl intune autopilot list --serial ${label(plan.device)}\` until it is gone.`,
+        next: `Run \`tenantctl intune autopilot sync\`, then \`tenantctl intune autopilot list --serial ${shellQuote(label(plan.device))}\` until it is gone.`,
       };
     },
   }),
@@ -1026,12 +1063,15 @@ export const commands: AnyCommand[] = [
       { name: 'csv', type: 'string', required: true, positional: true, description: 'Path to the hardware hash CSV.' },
       { name: 'groupTag', type: 'string', description: 'Group tag for every row (overrides the CSV column).' },
     ],
-    risk: 'write',
+    risk: 'destructive',
     permissions: { delegated: [WRITE_SERVICE_CONFIG], application: [WRITE_SERVICE_CONFIG], roles: INTUNE_ADMIN_ROLES },
     async preview(_ctx, args) {
       const rows = readImportCsv(args.csv, args.groupTag);
       return {
-        action: `Import ${rows.length} device${rows.length === 1 ? '' : 's'} into Windows Autopilot`,
+        action:
+          `Register ${rows.length} device${rows.length === 1 ? '' : 's'} in this tenant's Windows Autopilot ` +
+          '(they join this tenant at their next reset; another tenant cannot register them meanwhile)',
+        targetId: importFingerprint(rows),
         rows: rows.length,
         groupTags: countBy(rows, (r) => r.groupTag || '(none)'),
         devices: rows.map((r) =>
@@ -1045,8 +1085,10 @@ export const commands: AnyCommand[] = [
         request: { method: 'POST', path: `${IMPORTS_PATH}/import`, version: 'v1.0' },
       };
     },
-    async run(ctx, args) {
+    async run(ctx, args, approved) {
       const rows = readImportCsv(args.csv, args.groupTag);
+      // The file is read again here; refuse if it changed after the person approved its preview.
+      requireApprovedTarget(approved, importFingerprint(rows), 'CSV file');
       const response = await ctx.graph.post<{ value?: ImportedIdentity[] }>(`${IMPORTS_PATH}/import`, importBody(rows));
       const imported = (response?.value ?? []).map(shapeImported);
       return {
@@ -1076,7 +1118,7 @@ export const commands: AnyCommand[] = [
     risk: 'read',
     permissions: { delegated: [READ_SERVICE_CONFIG], application: [READ_SERVICE_CONFIG], roles: INTUNE_READ_ROLES },
     async run(ctx, args) {
-      const query = { $select: 'id,serialNumber,groupTag,productKey,importId,state,assignedUserPrincipalName' };
+      const query = { $select: 'id,serialNumber,groupTag,importId,state,assignedUserPrincipalName' };
       const result = args.failedOnly
         ? await scan<ImportedIdentity>(
             ctx,
@@ -1254,7 +1296,7 @@ export const commands: AnyCommand[] = [
         profile: view.profile,
         targets: view.targets,
         assignments: view.result,
-        next: `Watch profileStatus in \`tenantctl intune autopilot list\`; details with \`tenantctl intune autopilot profiles get ${quoted(plan.profile.displayName ?? plan.profile.id)}\`.`,
+        next: `Watch profileStatus in \`tenantctl intune autopilot list\`; details with \`tenantctl intune autopilot profiles get ${shellQuote(plan.profile.displayName ?? plan.profile.id)}\`.`,
       };
     },
   }),
@@ -1298,7 +1340,7 @@ export const commands: AnyCommand[] = [
         profile: view.profile,
         targets: view.targets,
         assignments: view.result,
-        next: `Check with \`tenantctl intune autopilot profiles get ${quoted(plan.profile.displayName ?? plan.profile.id)}\`.`,
+        next: `Check with \`tenantctl intune autopilot profiles get ${shellQuote(plan.profile.displayName ?? plan.profile.id)}\`.`,
       };
     },
   }),

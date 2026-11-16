@@ -4,7 +4,7 @@ import { LIST_ARGS, listLimit } from '../../core/listing.ts';
 import { pickOne, resolveUser } from '../../core/resolve.ts';
 import { signinErrorInfo, signinErrorLookupUrl } from '../../core/signinErrors.ts';
 import { type AnyCommand, type Context, defineCommand, type ListResult } from '../../core/types.ts';
-import { compact, daysAgo, daysSince, isGuid, settle } from '../../core/util.ts';
+import { compact, daysAgo, daysSince, isGuid, settle, shellQuote } from '../../core/util.ts';
 
 /**
  * User lifecycle (create, update, disable, delete, restore, licenses, passwords) and per-user troubleshooting
@@ -403,7 +403,7 @@ async function findAuthMethod(ctx: Context, userRef: string, methodId: string) {
   const method = methods.find((m) => m.id.toLowerCase() === methodId.trim().toLowerCase());
   if (!method) {
     throw new CliError('NOT_FOUND', `${user.userPrincipalName} has no authentication method ${methodId}`, {
-      hint: `Run \`tenantctl entra users auth-methods ${user.userPrincipalName}\` to list method ids.`,
+      hint: `Run \`tenantctl entra users auth-methods ${shellQuote(user.userPrincipalName)}\` to list method ids.`,
     });
   }
   const segment = AUTH_METHOD_TYPES[method['@odata.type']]?.segment;
@@ -518,7 +518,7 @@ async function planLicenseRemove(ctx: Context, args: { user: string; sku: string
   const states = (user.licenseAssignmentStates ?? []).filter((s) => s.skuId === sku.skuId);
   if (!states.length) {
     throw new CliError('NOT_FOUND', `${user.userPrincipalName} does not have ${sku.skuPartNumber}`, {
-      hint: `Run \`tenantctl entra users licenses ${user.userPrincipalName}\` to see their licenses.`,
+      hint: `Run \`tenantctl entra users licenses ${shellQuote(user.userPrincipalName)}\` to see their licenses.`,
     });
   }
   const groups = states.flatMap((s) => (s.assignedByGroup ? [s.assignedByGroup] : []));
@@ -1012,7 +1012,7 @@ export const commands: AnyCommand[] = [
           () => identity(manager),
           (error: unknown) => ({
             error: error instanceof Error ? error.message : String(error),
-            hint: `User created; set the manager later with \`tenantctl entra users update ${created.userPrincipalName} --manager ...\`.`,
+            hint: `User created; set the manager later with \`tenantctl entra users update ${shellQuote(created.userPrincipalName)} --manager ...\`.`,
           }),
         );
       }

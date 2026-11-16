@@ -868,6 +868,24 @@ describe('config get / export / create', () => {
     const written = await runCommand(commandById(commands, 'intune config export'), ['sc1', '--out', out], routes);
     expect(written.outcome.kind === 'result' && written.outcome.result).toMatchObject({ file: out, settingCount: 2 });
     expect(JSON.parse(readFileSync(out, 'utf8'))).toEqual(body);
+
+    const again = runCommand(commandById(commands, 'intune config export'), ['sc1', '--out', out], routes);
+    await expect(again).rejects.toMatchObject({ code: 'USAGE', message: expect.stringContaining('already exists') });
+    const forced = await runCommand(
+      commandById(commands, 'intune config export'),
+      ['sc1', '--out', out, '--force'],
+      routes,
+    );
+    expect(forced.outcome.kind).toBe('result');
+    const intoConfig = runCommand(
+      commandById(commands, 'intune config export'),
+      ['sc1', '--out', join(process.env.TENANTCTL_CONFIG_DIR ?? '', 'audit.jsonl'), '--force'],
+      routes,
+    );
+    await expect(intoConfig).rejects.toMatchObject({
+      code: 'USAGE',
+      message: expect.stringContaining('config folder'),
+    });
   });
 
   test('export refuses a classic profile', async () => {

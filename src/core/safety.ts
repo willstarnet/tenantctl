@@ -13,6 +13,27 @@ export interface ConfirmBinding {
   profile: string;
   tenant?: string;
   args: Record<string, unknown>;
+  /** Id of the object the preview resolved (`targetId`), so a token cannot act on a different object later. */
+  target?: string;
+}
+
+/** The `targetId` a destructive preview reports, so approval binds to the exact object it showed. */
+export function previewTarget(shown: unknown): string | undefined {
+  if (typeof shown !== 'object' || shown === null || !('targetId' in shown)) return undefined;
+  return typeof shown.targetId === 'string' ? shown.targetId : undefined;
+}
+
+/**
+ * Refuse to act when the object `run` resolved is not the one the person approved (deleted and recreated, renamed,
+ * or another match for the same name since the preview). No-op when nothing was approved or no target was bound.
+ */
+export function requireApprovedTarget(approved: unknown, id: string, what: string): void {
+  const expected = previewTarget(approved);
+  if (expected !== undefined && expected !== id) {
+    throw new CliError('DENIED', `The ${what} changed after it was approved (approved ${expected}, now ${id})`, {
+      hint: 'Nothing was changed. Run the command again and review the new preview.',
+    });
+  }
 }
 
 function canonical(value: unknown): string {

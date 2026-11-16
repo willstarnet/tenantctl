@@ -14,9 +14,25 @@ export interface CsvRow {
 
 const normalize = (name: string) => name.toLowerCase().replace(/[\s_-]/g, '');
 
+/**
+ * CSV text in the encoding the file declares. Windows PowerShell 5.1 `Out-File` (used by Get-WindowsAutopilotInfo
+ * and many export scripts) writes UTF-16LE with a BOM; everything else is read as UTF-8.
+ */
+function readText(path: string): string {
+  const bytes = readFileSync(path);
+  if (bytes[0] === 0xff && bytes[1] === 0xfe) return bytes.subarray(2).toString('utf16le');
+  if (bytes[0] === 0xfe && bytes[1] === 0xff) {
+    // UTF-16BE: swap byte pairs into little-endian order.
+    const swapped = Buffer.from(bytes.subarray(2));
+    swapped.swap16();
+    return swapped.toString('utf16le');
+  }
+  return bytes.toString('utf8');
+}
+
 export function readCsvRows(path: string, required: string[] = []): CsvRow[] {
   if (!existsSync(path)) throw new CliError('USAGE', `CSV file not found: ${path}`);
-  const records = parseCsv(readFileSync(path, 'utf8'));
+  const records = parseCsv(readText(path));
   if (!records.length) throw new CliError('USAGE', `${path} has no data rows`);
   if (records.length > MAX_CSV_ROWS) {
     throw new CliError('USAGE', `${path} has ${records.length} rows; the limit is ${MAX_CSV_ROWS} per run`, {

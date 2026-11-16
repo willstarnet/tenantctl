@@ -3,9 +3,8 @@ import { odata, seg } from '../../core/graph.ts';
 import { LIST_ARGS, listLimit } from '../../core/listing.ts';
 import { resolveUser } from '../../core/resolve.ts';
 import { type AnyCommand, type Context, defineCommand } from '../../core/types.ts';
-import { bytesToGb, compact, daysAgo, settle } from '../../core/util.ts';
+import { attempt, bytesToGb, compact, daysAgo, settle } from '../../core/util.ts';
 import {
-  attempt,
   DEVICES_PATH,
   type DeviceClause,
   deviceSummary,
@@ -200,26 +199,30 @@ const CONFIG_REPORT_KINDS: Record<string, string> = {
 };
 
 /**
- * Report `PolicyStatus` codes. Microsoft does not document this enum; the mapping matches what the Intune portal
- * shows for the same device (observed 2026-11), so the raw code is kept next to it as `statusCode`.
+ * Report `PolicyStatus` codes follow Graph's complianceStatus enum (unknown 0, notApplicable 1, compliant 2,
+ * remediated 3, nonCompliant 4, error 5, conflict 6, notAssigned 7:
+ * https://learn.microsoft.com/en-us/graph/api/resources/intune-shared-compliancestatus). The report itself is
+ * undocumented, so the raw code is kept next to the name as `statusCode`. The portal shows 2 and 3 as Succeeded
+ * and 4 and 5 as Error for configuration policies.
  */
 const REPORT_STATUS: Record<number, string> = {
   0: 'unknown',
   1: 'notApplicable',
   2: 'succeeded',
-  3: 'pending',
+  3: 'succeeded',
   4: 'error',
   5: 'error',
   6: 'conflict',
+  7: 'notAssigned',
 };
 
 /** Which user context wins when one policy reports several: the worst one. */
 const STATE_RANK: Record<string, number> = {
   error: 5,
   conflict: 4,
-  pending: 3,
   unknown: 2,
   succeeded: 1,
+  notAssigned: 0,
   notApplicable: 0,
 };
 
@@ -315,8 +318,11 @@ export async function deviceConfigurationReport(ctx: Context, deviceId: string):
     );
     const batch = reportRows(result);
     rows.push(...batch);
-    if (!batch.length || rows.length >= (result.TotalRowCount ?? 0)) break;
+    const total = result.TotalRowCount;
+    // Trust TotalRowCount when Intune sends it; without one, a short page is the last page.
+    if (!batch.length || (typeof total === 'number' ? rows.length >= total : batch.length < REPORT_PAGE)) return rows;
   }
+  ctx.log(`The device report has more than ${rows.length} rows; showing the first ${rows.length}.`);
   return rows;
 }
 

@@ -1,7 +1,7 @@
 import { seg } from '../../core/graph.ts';
 import { resolveUser } from '../../core/resolve.ts';
 import { type AnyCommand, type Context, defineCommand } from '../../core/types.ts';
-import { isSettledError, settle } from '../../core/util.ts';
+import { isSettledError, settle, shellQuote } from '../../core/util.ts';
 import { commands as entraCommands } from '../entra/index.ts';
 import { type GraphUser, getAuthMethodsSummary, getUserOverview } from '../entra/users.ts';
 import {
@@ -56,7 +56,7 @@ function accountFindings(user: GraphUser, skuNames: Record<string, string>): Fin
       area: 'account',
       issue: 'Account is disabled',
       detail: 'Every sign-in fails with 50057 until it is re-enabled.',
-      next: `tenantctl entra users enable ${upn}`,
+      next: `tenantctl entra users enable ${shellQuote(upn)}`,
     });
   }
   for (const state of user.licenseAssignmentStates ?? []) {
@@ -66,7 +66,7 @@ function accountFindings(user: GraphUser, skuNames: Record<string, string>): Fin
       area: 'licenses',
       issue: `License ${skuNames[state.skuId] ?? state.skuId} failed to assign: ${state.error}`,
       detail: state.assignedByGroup ? `Assigned through group ${state.assignedByGroup}.` : 'Assigned directly.',
-      next: `tenantctl entra users licenses ${upn}`,
+      next: `tenantctl entra users licenses ${shellQuote(upn)}`,
     });
   }
   if (!user.assignedLicenses?.length && user.userType !== 'Guest') {
@@ -99,7 +99,7 @@ function riskFindings(risk: RiskyUser | null, upn: string): Finding[] {
       area: 'risk',
       issue: `Entra ID Protection rates the user ${risk.riskLevel ?? 'at'} risk (${risk.riskState})`,
       detail: `Risk detail: ${risk.riskDetail ?? 'none'}; updated ${risk.riskLastUpdatedDateTime ?? 'unknown'}. Risk policies may block sign-in or force a password change.`,
-      next: `tenantctl entra risk-detections --user ${upn}`,
+      next: `tenantctl entra risk-detections --user ${shellQuote(upn)}`,
     },
   ];
 }
@@ -121,7 +121,7 @@ function mfaFindings(mfa: { hasStrongMethod?: boolean; registration?: unknown },
       detail:
         'Sign-ins that require MFA prompt for registration, or fail (50079/53004) if registration is blocked. A ' +
         'Temporary Access Pass lets the user register a method.',
-      next: `tenantctl entra users tap ${upn}`,
+      next: `tenantctl entra users tap ${shellQuote(upn)}`,
     },
   ];
 }
@@ -137,14 +137,14 @@ function deviceFindings(devices: ManagedDevice[]): Finding[] {
         area: 'devices',
         issue: `${name} is not compliant`,
         detail: 'Conditional Access policies that require a compliant device block it (53000).',
-        next: `tenantctl troubleshoot device "${name}"`,
+        next: `tenantctl troubleshoot device ${shellQuote(name)}`,
       });
     } else if ((shaped.daysSinceLastSync ?? 0) > STALE_DEVICE_DAYS) {
       findings.push({
         severity: 'low',
         area: 'devices',
         issue: `${name} has not checked in with Intune for ${shaped.daysSinceLastSync} days`,
-        next: `tenantctl troubleshoot device "${name}"`,
+        next: `tenantctl troubleshoot device ${shellQuote(name)}`,
       });
     }
   }

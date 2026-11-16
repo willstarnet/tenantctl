@@ -3,7 +3,7 @@ import { odata, seg } from '../../core/graph.ts';
 import { LIST_ARGS, listLimit } from '../../core/listing.ts';
 import { pickOne } from '../../core/resolve.ts';
 import { type AnyCommand, type ArgSpec, type Context, defineCommand, type Risk } from '../../core/types.ts';
-import { compact, daysAgo, daysSince, isGuid, settle } from '../../core/util.ts';
+import { compact, daysAgo, daysSince, isGuid, settle, shellQuote } from '../../core/util.ts';
 
 /**
  * Microsoft Defender for Endpoint API (`https://api.security.microsoft.com/api`) through `ctx.defender`:
@@ -234,7 +234,7 @@ function machineAction(spec: ActionSpec): AnyCommand {
           created: action?.creationDateTimeUtc ?? undefined,
         }),
         machine: { id: machine.id, computerDnsName: machine.computerDnsName ?? null },
-        next: `tenantctl defender machines actions --machine ${machineName(machine)}`,
+        next: `tenantctl defender machines actions --machine ${shellQuote(machineName(machine))}`,
       };
     },
   });

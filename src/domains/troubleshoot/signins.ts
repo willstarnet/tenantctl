@@ -1,7 +1,7 @@
 import { odata } from '../../core/graph.ts';
 import type { Context } from '../../core/types.ts';
 import { signinErrorInfo, signinErrorLookupUrl } from '../../core/signinErrors.ts';
-import { daysAgo } from '../../core/util.ts';
+import { daysAgo, shellQuote } from '../../core/util.ts';
 import { type SignIn, shapeSignin } from '../entra/users.ts';
 import type { Finding } from './findings.ts';
 
@@ -132,9 +132,10 @@ export function signinFindings(analysis: SigninAnalysis, upn: string): Finding[]
     const ongoing = !analysis.lastSuccess || group.lastSeen > analysis.lastSuccess;
     const spray = group.errorCode === 50126 && group.ipAddresses.length >= 3 && group.count >= 10;
     let next = `tenantctl entra signin-error ${group.errorCode}`;
-    if (DEVICE_CODES[group.errorCode] && group.devices[0]) next = `tenantctl troubleshoot device "${group.devices[0]}"`;
-    else if (CA_CODES[group.errorCode]) next = `tenantctl troubleshoot signin ${upn}`;
-    else if (spray) next = `tenantctl entra risk-detections --user ${upn}`;
+    if (DEVICE_CODES[group.errorCode] && group.devices[0]) {
+      next = `tenantctl troubleshoot device ${shellQuote(group.devices[0])}`;
+    } else if (CA_CODES[group.errorCode]) next = `tenantctl troubleshoot signin ${shellQuote(upn)}`;
+    else if (spray) next = `tenantctl entra risk-detections --user ${shellQuote(upn)}`;
     findings.push({
       severity: spray || ongoing ? 'high' : 'low',
       area: 'sign-in',

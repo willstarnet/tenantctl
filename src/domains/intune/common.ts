@@ -306,24 +306,29 @@ export async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T) =>
   return results;
 }
 
-/** Turn a rejected promise into `{ error }` so one failing item does not sink a composite. */
-export async function attempt<T>(promise: Promise<T>): Promise<T | { error: { code: string; message: string } }> {
-  try {
-    return await promise;
-  } catch (error) {
-    return {
-      error: {
-        code: error instanceof CliError ? error.code : 'INTERNAL',
-        message: error instanceof Error ? error.message : String(error),
-      },
-    };
-  }
-}
-
 /** `#microsoft.graph.win32LobApp` -> `win32LobApp`. */
 export function odataType(item: Record<string, unknown>): string | null {
   const type = item['@odata.type'];
   return typeof type === 'string' ? type.replace(/^#microsoft\.graph\./, '') : null;
+}
+
+/** Group display names by id through `$batch`; `known` names skip the lookup. Unknown or unreadable groups map to null. */
+export async function groupNamesById(
+  ctx: Context,
+  ids: string[],
+  known: Record<string, string> = {},
+): Promise<Record<string, string | null>> {
+  const names: Record<string, string | null> = { ...known };
+  const missing = [...new Set(ids)].filter((id) => !(id in names));
+  if (!missing.length) return names;
+  const results = await ctx.graph.batch<{ displayName?: string }>(
+    missing.map((id) => ({ path: `/groups/${seg(id)}`, query: { $select: 'id,displayName' } })),
+  );
+  missing.forEach((id, index) => {
+    const result = results[index];
+    names[id] = result && !result.error ? (result.body?.displayName ?? null) : null;
+  });
+  return names;
 }
 
 /** Find a policy/profile/app by id or display name among a small catalog list (Intune lists rarely exceed hundreds). */

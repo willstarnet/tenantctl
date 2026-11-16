@@ -28,7 +28,13 @@ export interface Envelope {
   ok: true;
   command: string;
   data: unknown;
-  meta?: { count: number; total?: number; truncated: boolean; hint?: string };
+  meta?: {
+    count: number;
+    total?: number;
+    truncated: boolean;
+    hint?: string;
+    unavailable?: readonly { section: string; error: { code: string; message: string } }[];
+  };
 }
 
 export function envelope(command: string, result: unknown, fields?: string[]): Envelope {
@@ -46,6 +52,7 @@ export function envelope(command: string, result: unknown, fields?: string[]): E
               hint: `${result.total === undefined ? 'More results exist' : `${result.items.length} of ${result.total} shown`}: raise --top or pass --all.`,
             }
           : {}),
+        ...(result.unavailable?.length ? { unavailable: result.unavailable } : {}),
       },
     };
   }

@@ -52,6 +52,20 @@ export async function settle<T extends Record<string, Promise<unknown>>>(tasks: 
   return out as Settled<T>;
 }
 
+/** Turn a rejected promise into `{ error }` so one failing item does not sink a composite (one-promise `settle`). */
+export async function attempt<T>(promise: Promise<T>): Promise<T | SettledError> {
+  try {
+    return await promise;
+  } catch (error) {
+    return {
+      error: {
+        code: error instanceof CliError ? error.code : 'INTERNAL',
+        message: error instanceof Error ? error.message : String(error),
+      },
+    };
+  }
+}
+
 /** Build a compact object, dropping undefined values (keeps null: null means "Graph says empty"). */
 export function compact<T extends Record<string, unknown>>(value: T): Partial<T> {
   const out: Record<string, unknown> = {};
@@ -62,4 +76,13 @@ export function compact<T extends Record<string, unknown>>(value: T): Partial<T>
 export function bytesToGb(bytes: number | null | undefined): number | null {
   if (typeof bytes !== 'number') return null;
   return Math.round((bytes / 1024 ** 3) * 100) / 100;
+}
+
+/**
+ * Quote one value for a shell command line an agent may run verbatim (`next`, hints, confirm re-runs). Tenant data
+ * such as device names, group names and mail addresses is user-controlled, so it must never reach the shell with
+ * `$(...)`, backticks or `;` live. Plain tokens stay unquoted for readability.
+ */
+export function shellQuote(value: string): string {
+  return /^[\w@%+=:,./-]+$/.test(value) ? value : `'${value.replace(/'/g, `'\\''`)}'`;
 }

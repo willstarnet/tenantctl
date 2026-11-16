@@ -3,7 +3,7 @@ import { CliError } from '../../core/errors.ts';
 import { seg } from '../../core/graph.ts';
 import { type ResolvedGroup, resolveGroup, resolveUser } from '../../core/resolve.ts';
 import { type AnyCommand, type Context, defineCommand } from '../../core/types.ts';
-import { compact, isGuid } from '../../core/util.ts';
+import { compact, isGuid, shellQuote } from '../../core/util.ts';
 import { type ResolvedMember, resolveMember } from './directory.ts';
 import { generatePassword } from './users.ts';
 
@@ -90,7 +90,7 @@ async function planInvite(ctx: Context, args: { email: string; redirectUrl: stri
       'USAGE',
       `${domain} is one of this tenant's verified domains, so ${email} is an internal user, not a guest`,
       {
-        hint: `Find them with \`tenantctl entra users get ${email}\`, or create a member account with \`tenantctl entra users create --upn ${email} --display-name "..."\`.`,
+        hint: `Find them with \`tenantctl entra users get ${shellQuote(email)}\`, or create a member account with \`tenantctl entra users create --upn ${shellQuote(email)} --display-name "..."\`.`,
       },
     );
   }
@@ -168,7 +168,7 @@ const inviteCommands: AnyCommand[] = [
                   displayName: group.displayName,
                   status: 'failed',
                   error: errorText(error),
-                  hint: `Guest created; retry with \`tenantctl entra groups add-member "${group.displayName}" ${userId}\`.`,
+                  hint: `Guest created; retry with \`tenantctl entra groups add-member ${shellQuote(group.displayName)} ${userId}\`.`,
                 },
         );
       }

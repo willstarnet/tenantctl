@@ -3,11 +3,11 @@ import { odata, seg } from '../../core/graph.ts';
 import { listLimit, LIST_ARGS } from '../../core/listing.ts';
 import { pickOne, resolveGroup, resolveUser } from '../../core/resolve.ts';
 import { SIGNIN_ERRORS, signinErrorInfo, signinErrorLookupUrl } from '../../core/signinErrors.ts';
+import { requireApprovedTarget } from '../../core/safety.ts';
 import { type AnyCommand, type Context, defineCommand, type ListResult } from '../../core/types.ts';
-import { compact, daysAgo, daysSince, isGuid, settle } from '../../core/util.ts';
+import { attempt, compact, daysAgo, daysSince, isGuid, settle } from '../../core/util.ts';
+import { autopilotByEntraId } from '../intune/autopilot.ts';
 import { type SignIn, shapeSignin } from './users.ts';
-import { AUTOPILOT_DEVICES_PATH } from '../intune/autopilot.ts';
-import { attempt } from '../intune/common.ts';
 
 const ALL = Number.POSITIVE_INFINITY;
 const DAY_MS = 86_400_000;
@@ -1172,7 +1172,7 @@ const appCommands: AnyCommand[] = [
 // Conditional Access
 // ---------------------------------------------------------------------------------------------------------------
 
-interface CaPolicy {
+export interface CaPolicy {
   id: string;
   displayName: string;
   state: string;
@@ -1216,7 +1216,7 @@ interface CaPolicy {
   } | null;
 }
 
-const CA_STATE: Record<string, string> = {
+export const CA_STATE: Record<string, string> = {
   enabled: 'enabled',
   disabled: 'disabled',
   enabledForReportingButNotEnforced: 'report-only',
@@ -1305,7 +1305,7 @@ export function shapeCaPolicy(p: CaPolicy) {
   });
 }
 
-async function resolveCaPolicy(ctx: Context, ref: string): Promise<CaPolicy> {
+export async function resolveCaPolicy(ctx: Context, ref: string): Promise<CaPolicy> {
   const value = ref.trim();
   if (isGuid(value)) {
     const policy = await ctx.graph.tryGet<CaPolicy>(`/identity/conditionalAccess/policies/${seg(value)}`);
@@ -1825,12 +1825,14 @@ const deviceCommands: AnyCommand[] = [
     async preview(ctx, args) {
       const device = await resolveEntraDevice(ctx, args.device);
       return {
-        device: shapeEntraDevice(device),
         action: `Disable Entra device "${device.displayName}": it can no longer authenticate to Entra ID.`,
+        targetId: device.id,
+        device: shapeEntraDevice(device),
       };
     },
-    async run(ctx, args) {
+    async run(ctx, args, approved) {
       const device = await resolveEntraDevice(ctx, args.device);
+      requireApprovedTarget(approved, device.id, 'Entra device');
       await ctx.graph.patch(`/devices/${seg(device.id)}`, { accountEnabled: false });
       return { id: device.id, displayName: device.displayName, accountEnabled: false };
     },
@@ -1862,16 +1864,27 @@ const deviceCommands: AnyCommand[] = [
     summary: 'Delete an Entra device object (and the BitLocker recovery keys escrowed for it)',
     description:
       'Permanent: the device can no longer authenticate and its BitLocker recovery keys stored in Entra are deleted ' +
-      'with it. For an Intune-managed or Autopilot-registered device, Microsoft says to delete the Intune record ' +
-      'first (`tenantctl intune devices retire|wipe`), then deregister it from Autopilot, which also cleans up the ' +
-      'Entra object; deleting the Entra object of an Autopilot device can make Autopilot enrollment fail. The ' +
-      'preview counts recovery keys (BitlockerKey.ReadBasic.All) and checks Intune (DeviceManagementManagedDevices.' +
-      'Read.All) and Autopilot (DeviceManagementServiceConfig.Read.All); without those it reports "unknown".',
+      "with it. For an Intune-managed or Autopilot-registered device, follow Microsoft's order instead: delete the " +
+      'Intune record (`tenantctl intune devices delete <device>`, after `retire|wipe` if needed), then ' +
+      '`tenantctl intune autopilot delete <serial>`, which also removes the Entra object; deleting the Entra object ' +
+      'of an Autopilot device can make Autopilot enrollment fail. The preview counts recovery keys and checks ' +
+      'Intune and Autopilot; a check it cannot make reports "unknown".',
     examples: ['tenantctl entra devices delete DESKTOP-123'],
     args: [deviceArg],
     risk: 'destructive',
     permissions: {
-      ...DEVICE_WRITE_PERMISSIONS,
+      delegated: [
+        ...DEVICE_WRITE_PERMISSIONS.delegated,
+        'BitlockerKey.ReadBasic.All',
+        'DeviceManagementManagedDevices.Read.All',
+        'DeviceManagementServiceConfig.Read.All',
+      ],
+      application: [
+        ...DEVICE_WRITE_PERMISSIONS.application,
+        'BitlockerKey.ReadBasic.All',
+        'DeviceManagementManagedDevices.Read.All',
+        'DeviceManagementServiceConfig.Read.All',
+      ],
       roles: ['Cloud Device Administrator', 'Intune Administrator', 'Windows 365 Administrator'],
     },
     async preview(ctx, args) {
@@ -1892,7 +1905,9 @@ const deviceCommands: AnyCommand[] = [
         ),
         byDeviceId('/informationProtection/bitlocker/recoveryKeys', 'deviceId'),
         byDeviceId('/deviceManagement/managedDevices', 'azureADDeviceId'),
-        byDeviceId(AUTOPILOT_DEVICES_PATH, 'azureActiveDirectoryDeviceId'),
+        device.deviceId
+          ? attempt(autopilotByEntraId(ctx, device.deviceId).then((items) => items.length))
+          : Promise.resolve(0),
       ]);
       const count = (v: number | { error: unknown }) => (typeof v === 'number' ? v : 'unknown');
       const warnings: string[] = [];
@@ -1905,24 +1920,27 @@ const deviceCommands: AnyCommand[] = [
       if (managed !== 0 || registered !== 0) {
         warnings.push(
           `Intune-managed: ${managed === 'unknown' ? 'unknown' : managed > 0 ? 'yes' : 'no'}; Autopilot-registered: ` +
-            `${registered === 'unknown' ? 'unknown' : registered > 0 ? 'yes' : 'no'}. Microsoft guidance: delete the ` +
-            'Intune record first (retire/wipe), then deregister from Autopilot instead of deleting the Entra object.',
+            `${registered === 'unknown' ? 'unknown' : registered > 0 ? 'yes' : 'no'}. Microsoft's order: ` +
+            '`tenantctl intune devices delete`, then `tenantctl intune autopilot delete`, instead of deleting the ' +
+            'Entra object.',
         );
       }
       return {
+        action: `Permanently delete Entra device "${device.displayName}" (${device.deviceId ?? device.id}).`,
+        targetId: device.id,
+        warnings,
+        bitLockerKeys: keyCount,
+        intuneManaged: managed === 'unknown' ? managed : managed > 0,
+        autopilotRegistered: registered === 'unknown' ? registered : registered > 0,
         device: compact({
           ...shapeEntraDevice(device),
           owners: Array.isArray(owners) ? owners : 'unknown',
         }),
-        bitLockerKeys: keyCount,
-        intuneManaged: managed === 'unknown' ? managed : managed > 0,
-        autopilotRegistered: registered === 'unknown' ? registered : registered > 0,
-        warnings,
-        action: `Permanently delete Entra device "${device.displayName}" (${device.deviceId ?? device.id}).`,
       };
     },
-    async run(ctx, args) {
+    async run(ctx, args, approved) {
       const device = await resolveEntraDevice(ctx, args.device);
+      requireApprovedTarget(approved, device.id, 'Entra device');
       await ctx.graph.delete(`/devices/${seg(device.id)}`);
       return { id: device.id, deviceId: device.deviceId ?? null, displayName: device.displayName, deleted: true };
     },

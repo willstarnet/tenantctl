@@ -3,7 +3,7 @@ import { odata, seg } from '../../core/graph.ts';
 import { LIST_ARGS, listLimit } from '../../core/listing.ts';
 import { pickOne } from '../../core/resolve.ts';
 import { type AnyCommand, type Context, defineCommand, type ListResult } from '../../core/types.ts';
-import { compact, isGuid, settle } from '../../core/util.ts';
+import { compact, isGuid, settle, shellQuote } from '../../core/util.ts';
 import { resolveServicePrincipal, roleNames, shapeServicePrincipal } from './directory.ts';
 
 /**
@@ -182,7 +182,7 @@ async function planRevoke(
       'USAGE',
       'Say what to revoke: --grant, --all-delegated, --app-role-assignment or --all-application',
       {
-        hint: `List the app's grants and their ids first: tenantctl entra apps consents "${args.app}"`,
+        hint: `List the app's grants and their ids first: tenantctl entra apps consents ${shellQuote(args.app)}`,
       },
     );
   }
@@ -198,7 +198,7 @@ async function planRevoke(
     const unknown = wanted.filter((id) => !items.some((item) => idOf(item) === id));
     if (unknown.length) {
       throw new CliError('NOT_FOUND', `"${sp.displayName}" has no ${kind} with id ${unknown.join(', ')}`, {
-        hint: `Valid ids: ${items.map(idOf).join(', ') || '(none)'}. See tenantctl entra apps consents "${sp.id}".`,
+        hint: `Valid ids: ${items.map(idOf).join(', ') || '(none)'}. See tenantctl entra apps consents ${sp.id}.`,
       });
     }
     return items.filter((item) => wanted.includes(idOf(item)));
@@ -213,7 +213,7 @@ async function planRevoke(
   );
   if (!delegated.length && !application.length) {
     throw new CliError('NOT_FOUND', `"${sp.displayName}" holds no consents of the selected kind; nothing to revoke`, {
-      hint: `tenantctl entra apps consents "${sp.id}" shows what it holds.`,
+      hint: `tenantctl entra apps consents ${sp.id} shows what it holds.`,
     });
   }
   return { sp, delegated, application };
@@ -259,7 +259,7 @@ const consentCommands: AnyCommand[] = [
         delegated: sections.delegated,
         application: sections.application,
         next: total
-          ? `To remove everything: tenantctl entra apps revoke-consent "${sp.id}" --all-delegated --all-application`
+          ? `To remove everything: tenantctl entra apps revoke-consent ${sp.id} --all-delegated --all-application`
           : undefined,
       });
     },
@@ -352,7 +352,7 @@ const consentCommands: AnyCommand[] = [
           ...status(delegated.length + i),
         })),
         next: [
-          `tenantctl entra apps disable "${sp.id}"`,
+          `tenantctl entra apps disable ${sp.id}`,
           `tenantctl entra signins --app ${sp.appId} --days 30`,
           'tenantctl entra audit --category ApplicationManagement --days 30',
         ],

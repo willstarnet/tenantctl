@@ -6,6 +6,7 @@ import { CliError, EXIT, toCliError } from './core/errors.ts';
 import { execute, type GlobalOptions } from './core/execute.ts';
 import { renderConfirmation, renderError, renderSuccess, type OutputFormat } from './core/output.ts';
 import type { AnyCommand } from './core/types.ts';
+import { shellQuote } from './core/util.ts';
 import { commandId, DOMAINS, domainCommands, findCommand, usage } from './registry.ts';
 
 interface ParsedGlobals extends GlobalOptions {
@@ -194,10 +195,6 @@ function commandHelp(command: AnyCommand): string {
     );
   }
   return lines.join('\n');
-}
-
-function shellQuote(token: string): string {
-  return /^[\w@%+=:,./-]+$/.test(token) ? token : `'${token.replace(/'/g, `'\\''`)}'`;
 }
 
 /** The exact command to re-run with the token, with secret values masked. */

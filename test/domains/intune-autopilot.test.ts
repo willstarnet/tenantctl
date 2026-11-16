@@ -182,7 +182,7 @@ describe('intune autopilot update', () => {
       cmd('autopilot update'),
       [LAPTOP.serialNumber, '--clear-group-tag', '--clear-user'],
       routes(),
-      { allowWrites: true },
+      { allowWrites: true, profile: { confirmMode: 'tty' } },
     );
     const posts = calls.filter((c) => c.method === 'POST');
     expect(posts.map((c) => c.path)).toEqual([
@@ -198,10 +198,25 @@ describe('intune autopilot update', () => {
       cmd('autopilot update'),
       [LAPTOP.serialNumber, '--user', 'sam@contoso.com'],
       [...routes(), { path: '/users/sam@contoso.com', reply: { body: user } }],
-      { allowWrites: true },
+      { allowWrites: true, profile: { confirmMode: 'tty' } },
     );
     const post = calls.find((c) => c.path.endsWith('/updateDeviceProperties'));
     expect(post?.body).toEqual({ userPrincipalName: 'sam@contoso.com', addressableUserName: 'Sam Lee' });
+  });
+
+  test('a partial serial never selects the device to change', async () => {
+    const run = runCommand(
+      cmd('autopilot update'),
+      ['5CG1234', '--group-tag', 'Finance'],
+      [
+        {
+          path: AP,
+          reply: (req) => (String(req.query.$filter ?? '').includes('contains') ? page([LAPTOP]) : page([])),
+        },
+      ],
+      { allowWrites: true, dryRun: true },
+    );
+    await expect(run).rejects.toMatchObject({ code: 'USAGE', message: expect.stringContaining('whole serial') });
   });
 
   test('refuses a run with nothing to change', async () => {
@@ -309,7 +324,7 @@ describe('intune autopilot import', () => {
       dryRun: true,
     });
     expect(result<{ preview: Record<string, unknown> }>(dry.outcome).preview).toMatchObject({
-      action: 'Import 2 devices into Windows Autopilot',
+      action: expect.stringContaining('Register 2 devices'),
       groupTags: { Sales: 2 },
     });
     expect(dry.calls).toHaveLength(0);
@@ -320,6 +335,7 @@ describe('intune autopilot import', () => {
       [importRoute],
       {
         allowWrites: true,
+        profile: { confirmMode: 'tty' },
       },
     );
     const body = calls[0]?.body as { importedWindowsAutopilotDeviceIdentities: Record<string, unknown>[] };
@@ -340,6 +356,25 @@ describe('intune autopilot import', () => {
         { id: 'imp-1', serialNumber: 'SN2', status: 'pending' },
       ],
     });
+  });
+
+  test('reads the UTF-16 file Windows PowerShell 5.1 writes', async () => {
+    const path = join(tempConfigDir(), 'utf16.csv');
+    const text = [HEADER, 'SN1,PK1,QUJD,,'].join('\r\n');
+    writeFileSync(path, Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from(text, 'utf16le')]));
+    const dry = await runCommand(cmd('autopilot import'), [path], [importRoute], { allowWrites: true, dryRun: true });
+    expect(result<{ preview: { devices: unknown[] } }>(dry.outcome).preview.devices).toEqual([
+      { line: 2, serialNumber: 'SN1', groupTag: null },
+    ]);
+  });
+
+  test('refuses to import a file that changed after its preview was approved', async () => {
+    const path = csv(['SN1,,QUJD,,']);
+    const first = await runCommand(cmd('autopilot import'), [path], [importRoute], { allowWrites: true });
+    const token = first.outcome.kind === 'confirm' ? first.outcome.token : '';
+    writeFileSync(path, [HEADER, 'SN1,,QUJD,,', 'SN9,,REVG,,'].join('\n'));
+    const second = runCommand(cmd('autopilot import'), [path], [importRoute], { allowWrites: true, confirm: token });
+    await expect(second).rejects.toMatchObject({ code: 'CONFIRM_INVALID' } satisfies Partial<CliError>);
   });
 });
 

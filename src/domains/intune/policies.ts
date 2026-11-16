@@ -1,13 +1,14 @@
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, lstatSync, readFileSync, writeFileSync } from 'node:fs';
+import { resolve, sep } from 'node:path';
+import { configDir } from '../../core/config.ts';
 import { CliError } from '../../core/errors.ts';
 import { seg } from '../../core/graph.ts';
 import { LIST_ARGS, listLimit } from '../../core/listing.ts';
 import { type AnyCommand, type Context, defineCommand, type ListResult } from '../../core/types.ts';
-import { compact, settle } from '../../core/util.ts';
+import { attempt, compact, settle, shellQuote } from '../../core/util.ts';
 import { listAssignments, resolveConfigProfile, shapeAssignmentLists } from './assignments.ts';
 import {
   APPS_PATH,
-  attempt,
   COMPLIANCE_PATH,
   CONFIG_PATH,
   DEVICES_PATH,
@@ -336,6 +337,27 @@ function shapeSettingSummaries(items: SettingSummary[]) {
     .sort((a, b) => (b.failing ?? 0) - (a.failing ?? 0) || String(a.setting).localeCompare(String(b.setting)));
 }
 
+/**
+ * Write an export without surprises: never into tenantctl's own config folder (audit log, tokens), never through a
+ * symlink, never over an existing file unless `force`, readable only by the current user.
+ */
+function writeExport(path: string, content: string, force: boolean): string {
+  const file = resolve(path);
+  const configRoot = resolve(configDir());
+  if (file === configRoot || file.startsWith(`${configRoot}${sep}`)) {
+    throw new CliError('USAGE', `--out must not point into the tenantctl config folder (${configRoot})`);
+  }
+  const existing = lstatSync(file, { throwIfNoEntry: false });
+  if (existing?.isSymbolicLink()) throw new CliError('USAGE', `--out ${file} is a symbolic link; pick a plain file`);
+  if (existing && !force) {
+    throw new CliError('USAGE', `${file} already exists`, {
+      hint: 'Pick a new file name, or pass --force to replace it.',
+    });
+  }
+  writeFileSync(file, content, { mode: 0o600, flag: force ? 'w' : 'wx' });
+  return file;
+}
+
 export const commands: AnyCommand[] = [
   defineCommand({
     domain: 'intune',
@@ -643,7 +665,8 @@ export const commands: AnyCommand[] = [
     ],
     args: [
       { ...PROFILE_ARG, description: 'Settings catalog policy name or id.' },
-      { name: 'out', type: 'string', description: 'Write the JSON to this file instead of printing it.' },
+      { name: 'out', type: 'string', description: 'Write the JSON to this new file instead of printing it.' },
+      { name: 'force', type: 'boolean', description: 'Overwrite --out if it already exists (never a symlink).' },
     ],
     risk: 'read',
     permissions: { delegated: [READ_CONFIG], application: [READ_CONFIG], roles: INTUNE_READ_ROLES },
@@ -662,12 +685,12 @@ export const commands: AnyCommand[] = [
       if (ctx.full && !args.out) return policy;
       const body = policyBody(policy);
       if (!args.out) return body;
-      writeFileSync(args.out, `${JSON.stringify(body, null, 2)}\n`);
+      const file = writeExport(args.out, `${JSON.stringify(body, null, 2)}\n`, args.force);
       return {
-        file: args.out,
+        file,
         name: body.name,
         settingCount: body.settings.length,
-        next: `tenantctl intune config create --file ${JSON.stringify(args.out)} --name "<new name>"`,
+        next: `tenantctl intune config create --file ${shellQuote(file)} --name '<new name>'`,
       };
     },
   }),

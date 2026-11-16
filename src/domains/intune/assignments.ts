@@ -2,12 +2,12 @@ import { CliError } from '../../core/errors.ts';
 import { seg } from '../../core/graph.ts';
 import { type ResolvedGroup, resolveGroup } from '../../core/resolve.ts';
 import { type AnyCommand, type ArgSpec, type Context, defineCommand, type ListResult } from '../../core/types.ts';
-import { compact, isSettledError, settle } from '../../core/util.ts';
+import { attempt, compact, isSettledError, settle, shellQuote } from '../../core/util.ts';
 import {
   APPS_PATH,
-  attempt,
   COMPLIANCE_PATH,
   CONFIG_PATH,
+  groupNamesById,
   INTUNE_ADMIN_ROLES,
   INTUNE_READ_ROLES,
   odataType,
@@ -129,14 +129,28 @@ function sameTarget(a: Target | null | undefined, b: Target): boolean {
   return (a?.groupId ?? null) === (b.groupId ?? null);
 }
 
-/** Drop read-only OData annotations from an assignment Graph returned, keeping its type. */
+/**
+ * The assignment as `/assign` accepts it back: OData annotations and the read-only `source`/`sourceId` (beta) are
+ * dropped, the type is kept.
+ */
 function clean(spec: KindSpec, assignment: Assignment): Assignment {
   const out: Assignment = { '@odata.type': spec.assignmentType };
   for (const [key, value] of Object.entries(assignment)) {
-    if (key.startsWith('@odata.') && key !== '@odata.type') continue;
+    if ((key.startsWith('@odata.') && key !== '@odata.type') || key === 'source' || key === 'sourceId') continue;
     out[key] = value;
   }
   return out;
+}
+
+/**
+ * Assignments a policy set manages come back in the same list. `/assign` takes only direct assignments, and
+ * Microsoft does not document whether re-sending them converts them or drops them, so refuse instead of guessing.
+ */
+function refusePolicySetAssignments(subject: Subject, current: Assignment[]): void {
+  if (!current.some((a) => a.source === 'policySets')) return;
+  throw new CliError('USAGE', `${describeSubject(subject)} has assignments that come from a policy set`, {
+    hint: 'Change its assignments in the Intune admin center (Devices > Policy sets) so the policy set stays intact.',
+  });
 }
 
 export async function listAssignments(ctx: Context, subject: Subject): Promise<Assignment[]> {
@@ -264,27 +278,14 @@ export async function memberCount(ctx: Context, groupId: string): Promise<number
   }
 }
 
-/**
- * Display names of the groups the assignments target, fetched through `$batch`; `known` names skip the lookup.
- * Unknown or unreadable groups map to null.
- */
+/** Display names of the groups the assignments target; `known` names skip the lookup. Unreadable groups map to null. */
 export async function assignmentGroupNames(
   ctx: Context,
   assignments: Assignment[],
   known: Record<string, string> = {},
 ) {
-  const names: Record<string, string | null> = { ...known };
   const ids = assignments.flatMap((a) => (typeof a.target?.groupId === 'string' ? [a.target.groupId] : []));
-  const missing = [...new Set(ids)].filter((id) => !(id in names));
-  if (!missing.length) return names;
-  const results = await ctx.graph.batch<{ displayName?: string }>(
-    missing.map((id) => ({ path: `/groups/${seg(id)}`, query: { $select: 'id,displayName' } })),
-  );
-  missing.forEach((id, index) => {
-    const result = results[index];
-    names[id] = result && !result.error ? (result.body?.displayName ?? null) : null;
-  });
-  return names;
+  return groupNamesById(ctx, ids, known);
 }
 
 /**
@@ -302,7 +303,8 @@ export function shapeAssignment(
     target: targetKind(target),
     group: groupId ? (names[groupId] ?? null) : undefined,
     groupId,
-    intent: assignment.intent ?? undefined,
+    // Non-app assignments carry `apply` (the default) or `remove` in beta; only `remove` is worth showing.
+    intent: assignment.intent && assignment.intent !== 'apply' ? assignment.intent : undefined,
     ...filterFields(target, filters),
   });
 }
@@ -461,7 +463,7 @@ function filterChangeAction(
 function unassignAction(subject: Subject, target: ResolvedTarget, removed: Assignment[]): string {
   const what = describeSubject(subject);
   if (target.kind === 'exclude') return `Stop excluding ${describeTarget(target)} from ${what}`;
-  const intents = [...new Set(removed.map((a) => a.intent).filter(Boolean))].join('/');
+  const intents = subject.kind === 'app' ? [...new Set(removed.map((a) => a.intent).filter(Boolean))].join('/') : '';
   const sentence = `Remove the ${intents ? `${intents} ` : ''}assignment of ${what} for ${describeTarget(target)}`;
   return subject.kind === 'app' && intents.includes('required')
     ? `${sentence} (already installed copies stay installed)`
@@ -545,6 +547,7 @@ async function planAssign(ctx: Context, subject: Subject, args: Args): Promise<P
     // --filter must resolve; for --clear-filter the names are only for the action sentence.
     wantsFilter ? listFilters(ctx) : args.clearFilter ? attempt(listFilters(ctx)) : undefined,
   ]);
+  refusePolicySetAssignments(subject, current);
   const filters = loaded && !('error' in loaded) ? loaded.items : undefined;
   let filterRequest: FilterRequest = null;
   if (wantsFilter) {
@@ -573,9 +576,11 @@ async function planAssign(ctx: Context, subject: Subject, args: Args): Promise<P
       continue;
     }
     let updated = existing;
-    const intentChanged = Boolean(intent && existing.intent !== intent);
-    // Intune allows one intent per group per app: switching intent replaces the existing assignment.
-    if (intentChanged) updated = { ...updated, intent };
+    // Intune allows one intent per group per app: switching intent replaces the existing assignment. Non-app
+    // assignments in `remove` state are switched back to `apply`, since the user asked to apply the policy.
+    const wantedIntent = intent ?? (existing.intent === 'remove' ? 'apply' : undefined);
+    const intentChanged = Boolean(wantedIntent && existing.intent !== wantedIntent);
+    if (intentChanged) updated = { ...updated, intent: wantedIntent };
     let filterChanged = false;
     if (filtered) {
       const before = filterOf(existing.target);
@@ -611,6 +616,7 @@ async function planUnassign(ctx: Context, subject: Subject, args: Args): Promise
   const target = targets[0] as ResolvedTarget;
   const matches = (a: Assignment) => sameTarget(a.target, target.target) && (!intent || a.intent === intent);
   const removed = current.filter(matches);
+  refusePolicySetAssignments(subject, current);
   if (!removed.length) {
     throw new CliError('NOT_FOUND', `${describeSubject(subject)} is not assigned to ${describeTarget(target)}`, {
       hint:
@@ -755,8 +761,6 @@ interface AreaSpec {
   examples: { assign: string[]; unassign: string[] };
 }
 
-const quoted = (value: string) => (/[\s"']/.test(value) ? `"${value.replace(/"/g, '\\"')}"` : value);
-
 const AREAS: AreaSpec[] = [
   {
     area: 'apps',
@@ -765,7 +769,7 @@ const AREAS: AreaSpec[] = [
     resolve: resolveApp,
     permission: WRITE_APPS,
     extra: [READ_CONFIG],
-    next: (s) => `tenantctl intune apps status ${quoted(s.name)}`,
+    next: (s) => `tenantctl intune apps status ${shellQuote(s.name)}`,
     description:
       'intent required installs the app on targeted devices/users, available offers it in Company Portal ' +
       '(users only: refused with --all-devices, and Intune ignores available for device groups), uninstall ' +
@@ -787,7 +791,7 @@ const AREAS: AreaSpec[] = [
     resolve: resolveCompliance,
     permission: WRITE_CONFIG,
     extra: [],
-    next: (s) => `tenantctl intune compliance status ${quoted(s.name)}`,
+    next: (s) => `tenantctl intune compliance status ${shellQuote(s.name)}`,
     description:
       'Newly targeted devices are evaluated at their next check-in; non-compliant ones can lose access through ' +
       'Conditional Access after the grace period.',
@@ -807,7 +811,9 @@ const AREAS: AreaSpec[] = [
     permission: WRITE_CONFIG,
     extra: [],
     next: (s) =>
-      s.kind === 'config' ? `tenantctl intune config status ${quoted(s.name)}` : `tenantctl intune assignments <group>`,
+      s.kind === 'config'
+        ? `tenantctl intune config status ${shellQuote(s.name)}`
+        : `tenantctl intune assignments <group>`,
     description:
       'Works for classic profiles (deviceConfigurations) and settings catalog / endpoint security policies ' +
       '(configurationPolicies; Microsoft has not published a v1.0 equivalent).',
@@ -1099,11 +1105,12 @@ export const commands: AnyCommand[] = [
             ...filterFields(target, filters),
           }) as GroupHit;
           const groupId = typeof target.groupId === 'string' ? target.groupId : null;
+          const excludes = kind === 'exclude' || assignment.intent === 'remove';
           if (kind === 'allUsers') allUsers.push(hit);
           else if (kind === 'allDevices') allDevices.push(hit);
-          else if (groupId === group.id) (kind === 'exclude' ? excluded : included).push(hit);
+          else if (groupId === group.id) (excludes ? excluded : included).push(hit);
           else if (groupId && groupId in parents) {
-            (kind === 'exclude' ? excluded : included).push({ ...hit, via: parents[groupId] });
+            (excludes ? excluded : included).push({ ...hit, via: parents[groupId] });
           }
         }
       }

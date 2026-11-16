@@ -1,6 +1,8 @@
 import { CliError } from '../../core/errors.ts';
 import { type ApiVersion, seg } from '../../core/graph.ts';
 import { type AnyCommand, type ArgSpec, type Context, defineCommand, type Risk } from '../../core/types.ts';
+import { requireApprovedTarget } from '../../core/safety.ts';
+import { shellQuote } from '../../core/util.ts';
 import {
   DEVICES_PATH,
   deviceSummary,
@@ -93,6 +95,7 @@ function deviceAction(spec: ActionSpec): AnyCommand {
       const device = await target(ctx, spec, args);
       return {
         action: spec.describe(device, args),
+        targetId: device.id,
         device: deviceSummary(device),
         request: {
           method: spec.action ? 'POST' : 'DELETE',
@@ -102,8 +105,9 @@ function deviceAction(spec: ActionSpec): AnyCommand {
         },
       };
     },
-    async run(ctx, args) {
+    async run(ctx, args, approved) {
       const device = await target(ctx, spec, args);
+      requireApprovedTarget(approved, device.id, 'device');
       const options = { version: spec.version };
       const response = spec.action
         ? await ctx.graph.post(requestPath(device), spec.body?.(args, device), options)
@@ -114,7 +118,7 @@ function deviceAction(spec: ActionSpec): AnyCommand {
         device: deviceSummary(device),
         ...(response !== undefined ? { response } : {}),
         next: spec.action
-          ? `The device acts on this at its next check-in. Track it with \`tenantctl intune devices actions ${device.deviceName ?? device.id}\`.`
+          ? `The device acts on this at its next check-in. Track it with \`tenantctl intune devices actions ${shellQuote(device.deviceName ?? device.id)}\`.`
           : undefined,
       };
     },

@@ -33,6 +33,19 @@ All notable changes are listed here. The format follows
 - `intune config export` and `intune config create --file`: copy a settings catalog or endpoint security policy
   to JSON, edit it, and create it as a new policy.
 - `intune compliance settings`: how many devices pass or fail each setting of a compliance policy.
+- `intune tenant`: Apple push certificate, ADE and VPP tokens with days left, Managed Google Play, Mobile Threat
+  Defense connectors and compliance settings, with warnings for anything expiring or off.
+- `intune cleanup-rules list` and `intune cleanup-rules create` (the preview counts the devices it would hide).
+- `intune rbac`: Intune roles with their assignments, scope tags and Multi Admin Approval policies.
+- `intune scripts list` and `intune scripts status`: platform scripts, Remediations and macOS shell scripts,
+  with per-device failures.
+- `intune updates list` and `intune updates get`: update rings and feature, quality and driver update profiles,
+  with the ones Windows Autopatch manages marked.
+- `entra ca set-state`: turn a Conditional Access policy on, off or to report-only.
+- `entra ca locations`: named locations with their ranges and the policies that use them; `--ip` checks
+  whether an address is in one.
+- `entra policies`: security defaults, user consent, guest invites, self-service sign-up, the admin consent
+  workflow and authentication methods, with warnings where they differ from Microsoft's recommendations.
 
 ### Fixed
 
@@ -44,6 +57,23 @@ All notable changes are listed here. The format follows
 - `intune devices config-states` and `troubleshoot device` no longer hit Intune throttling, and now include
   settings catalog, administrative template and endpoint security policies. They read the per-device report
   the Intune admin center uses.
+- `autopilot import` reads the UTF-16 CSV that Get-WindowsAutopilotInfo writes on Windows PowerShell 5.1.
+- `entra devices delete` now detects Autopilot registrations, and points to `intune devices delete` then
+  `intune autopilot delete` as Microsoft's order.
+- Assign and unassign no longer send back the read-only `source` fields, refuse items whose assignments come
+  from a policy set, and treat a configuration assignment in `remove` state as an exclusion.
+
+### Security
+
+- `next` commands and hints shell-quote tenant data, so a device, group or app name containing `$(...)` or
+  backticks cannot run anything when an agent runs the suggestion.
+- Destructive commands act only on the object the person approved: if the name resolves to another object by
+  the time the change runs (or a confirm token is reused after that), nothing changes.
+- `intune autopilot update` and `intune autopilot import` need approval like other destructive changes; an
+  import is refused if the CSV changed after its preview. Changes need the whole serial, not part of it.
+- `intune config export --out` never overwrites a file without `--force`, never writes through a symlink or into
+  the tenantctl config folder, and creates the file readable only by you.
+- Approval dialogs show every warning in full before the details are cut short.
 
 ### Changed
 

@@ -761,7 +761,7 @@ describe('entra devices', () => {
       autopilotRegistered: false,
     });
     expect(preview.warnings[0]).toContain('2 BitLocker recovery key(s)');
-    expect(preview.warnings[1]).toContain('deregister from Autopilot');
+    expect(preview.warnings[1]).toContain('tenantctl intune autopilot delete');
     expect(preview.action).toContain('Permanently delete Entra device "FIN-LAPTOP-01"');
     const second = await runCommand(cmd('devices delete'), ['FIN-LAPTOP-01'], routes, {
       allowWrites: true,

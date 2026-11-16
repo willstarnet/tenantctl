@@ -1,6 +1,6 @@
 import { odata } from '../../core/graph.ts';
 import { type AnyCommand, type Context, defineCommand, type ListResult } from '../../core/types.ts';
-import { daysSince, isSettledError, type Settled, settle } from '../../core/util.ts';
+import { daysSince, isSettledError, type Settled, settle, shellQuote } from '../../core/util.ts';
 import { commands as defenderCommands } from '../defender/index.ts';
 import { commands as entraCommands } from '../entra/index.ts';
 import { commands as healthCommands, type HealthSummary, summarizeHealth } from '../health/index.ts';
@@ -187,7 +187,7 @@ function tenantFindings(s: Sections): Finding[] {
         severity: 'high',
         area: 'service health',
         issue: `Microsoft reports an issue with ${d.service} (${d.status})`,
-        next: `tenantctl health issues --service "${d.service}" --active`,
+        next: `tenantctl health issues --service ${shellQuote(d.service)} --active`,
       });
     }
   }

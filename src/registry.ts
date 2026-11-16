@@ -23,12 +23,13 @@ export const DOMAINS: DomainInfo[] = [
   {
     name: 'entra',
     summary:
-      'Users, guests, groups, licenses, sign-ins, MFA, roles, apps and consent, Conditional Access, risk, reviews',
+      'Users, guests, groups, licenses, sign-ins, MFA, roles, apps and consent, Conditional Access, tenant policies, risk',
   },
   {
     name: 'intune',
     summary:
-      'Managed devices, compliance, configuration, apps, assignment filters, Autopilot, enrollment, remote actions',
+      'Managed devices, compliance, configuration, apps, assignment filters, Autopilot, enrollment, updates, scripts, ' +
+      'tenant health, remote actions',
   },
   {
     name: 'defender',
