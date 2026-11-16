@@ -488,33 +488,92 @@ describe('policies and reports', () => {
     expect(result?.items.map((i) => i.device)).toEqual(['DESKTOP-4F2K9']);
   });
 
-  test('apps status reports failed devices with hex error codes', async () => {
-    const { outcome } = await runCommand(
+  test('apps status reads the install reports: summary counts, failed devices first with hex error codes', async () => {
+    const schema = (columns: string[]) => columns.map((Column) => ({ Column }));
+    const { outcome, calls } = await runCommand(
       commandById(commands, 'intune apps status'),
       ['Zoom'],
       [
         { path: '/deviceAppManagement/mobileApps', reply: page([{ id: 'app1', displayName: 'Zoom Workplace' }]) },
         {
-          path: '/deviceAppManagement/mobileApps/app1/installSummary',
-          reply: { body: { installedDeviceCount: 10, failedDeviceCount: 1 } },
+          method: 'POST',
+          path: '/deviceManagement/reports/getAppStatusOverviewReport',
+          reply: {
+            body: JSON.stringify({
+              TotalRowCount: 1,
+              Schema: schema(['ApplicationId', 'InstalledDeviceCount', 'FailedDeviceCount']),
+              Values: [['app1', 10, 1]],
+            }),
+          },
         },
         {
-          path: '/deviceAppManagement/mobileApps/app1/deviceStatuses',
-          reply: page([
-            { deviceName: 'DESKTOP-4F2K9', installState: 'failed', errorCode: -2016281116 },
-            { deviceName: 'DESKTOP-OK', installState: 'installed', errorCode: 0 },
-          ]),
+          method: 'POST',
+          path: '/deviceManagement/reports/retrieveDeviceAppInstallationStatusReport',
+          reply: {
+            body: {
+              TotalRowCount: 2,
+              Schema: schema([
+                'DeviceName',
+                'UserId',
+                'UserPrincipalName',
+                'ErrorCode',
+                'HexErrorCode',
+                'AppInstallState_loc',
+              ]),
+              Values: [
+                ['DESKTOP-OK', '00000000-0000-0000-0000-000000000000', '', 0, '', 'Installed'],
+                ['DESKTOP-4F2K9', 'u-1', 'jane@contoso.com', -2016281116, '', 'Failed'],
+              ],
+            },
+          },
+        },
+      ],
+    );
+    expect(calls.filter((c) => c.method === 'POST').map((c) => (c.body as { filter: string }).filter)).toEqual([
+      "(ApplicationId eq 'app1')",
+      "(ApplicationId eq 'app1')",
+    ]);
+    const result =
+      outcome.kind === 'result'
+        ? (outcome.result as { summary: Record<string, number>; devices: { items: Record<string, unknown>[] } })
+        : null;
+    expect(result?.summary).toEqual({ installedDevices: 10, failedDevices: 1 });
+    expect(result?.devices.items).toEqual([
+      expect.objectContaining({
+        device: 'DESKTOP-4F2K9',
+        user: 'jane@contoso.com',
+        state: 'Failed',
+        errorCode: '0x87D1FDE4',
+      }),
+      expect.objectContaining({ device: 'DESKTOP-OK', user: null, state: 'Installed', errorCode: null }),
+    ]);
+  });
+
+  test('apps status reports a null summary before Intune has results and --failed-only drops other states', async () => {
+    const empty = { body: { TotalRowCount: 0, Schema: [], Values: [] } };
+    const { outcome } = await runCommand(
+      commandById(commands, 'intune apps status'),
+      ['Zoom', '--failed-only'],
+      [
+        { path: '/deviceAppManagement/mobileApps', reply: page([{ id: 'app1', displayName: 'Zoom Workplace' }]) },
+        { method: 'POST', path: '/deviceManagement/reports/getAppStatusOverviewReport', reply: empty },
+        {
+          method: 'POST',
+          path: '/deviceManagement/reports/retrieveDeviceAppInstallationStatusReport',
+          reply: {
+            body: {
+              TotalRowCount: 1,
+              Schema: [{ Column: 'DeviceName' }, { Column: 'AppInstallState_loc' }],
+              Values: [['DESKTOP-OK', 'Installed']],
+            },
+          },
         },
       ],
     );
     const result =
-      outcome.kind === 'result'
-        ? (outcome.result as { summary: Record<string, number>; failures: { items: Record<string, unknown>[] } })
-        : null;
-    expect(result?.summary).toMatchObject({ installedDevices: 10, failedDevices: 1 });
-    expect(result?.failures.items).toEqual([
-      expect.objectContaining({ device: 'DESKTOP-4F2K9', errorCode: '0x87D1FDE4' }),
-    ]);
+      outcome.kind === 'result' ? (outcome.result as { summary: unknown; devices: { items: unknown[] } }) : null;
+    expect(result?.summary).toBeNull();
+    expect(result?.devices.items).toEqual([]);
   });
 
   test('report noncompliant batches policy states, groups devices by OS and ranks failing settings', async () => {

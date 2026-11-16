@@ -121,7 +121,7 @@ Risk: **read** changes nothing; **write** needs writes enabled; **destructive** 
 | [`intune config export`](#tenantctl-intune-config-export)                             | Export a settings catalog policy as a JSON body ready for `config create`                           | read        |
 | [`intune config create`](#tenantctl-intune-config-create)                             | Create a settings catalog policy from a JSON file (unassigned until you run `config assign`)        | write       |
 | [`intune apps list`](#tenantctl-intune-apps-list)                                     | List apps in Intune with type, publisher and whether they are assigned                              | read        |
-| [`intune apps status`](#tenantctl-intune-apps-status)                                 | Install summary of an app and the devices where it failed, with error codes                         | read        |
+| [`intune apps status`](#tenantctl-intune-apps-status)                                 | Install summary of an app and its state on every targeted device, with error codes                  | read        |
 | [`intune report noncompliant`](#tenantctl-intune-report-noncompliant)                 | Non-compliant devices grouped by OS and by the top failing policies and settings                    | read        |
 | [`intune apps assignments`](#tenantctl-intune-apps-assignments)                       | Who an app is assigned to: groups, all users / all devices, intent, filters and exclusions          | read        |
 | [`intune apps assign`](#tenantctl-intune-apps-assign)                                 | Assign a app to a group, all users or all devices (keeps existing assignments)                      | destructive |
@@ -2700,9 +2700,9 @@ Permissions: delegated `DeviceManagementApps.Read.All`; application `DeviceManag
 
 ### `tenantctl intune apps status`
 
-Install summary of an app and the devices where it failed, with error codes
+Install summary of an app and its state on every targeted device, with error codes
 
-Use for "did Zoom install on everyone" or "why did the app fail on Bob's laptop". summary has device and user counts (installed, failed, pending, notInstalled, notApplicable); failures lists devices with errorCode (hex, searchable in Microsoft docs) and installStateDetail. (beta API; per-device statuses are not populated for every app type.)
+Use for "did Zoom install on everyone" or "why did the app fail on Bob's laptop". summary has device and user counts (installed, failed, pending, notInstalled, notApplicable), or is null until Intune has results for a newly assigned app. devices has one row per device and user context (the system row has no user), failed first, with state, detail and errorCode (hex, searchable in Microsoft docs). --failed-only keeps failed rows. Reads the Intune app install reports, the same data as the admin center (beta API).
 
 ```
 tenantctl intune apps status <app> [options]
@@ -2711,6 +2711,7 @@ tenantctl intune apps status <app> [options]
 | Argument          | Type    | Description                                                  |
 | ----------------- | ------- | ------------------------------------------------------------ |
 | `<app>` / `--app` | string  | App name or id. (required)                                   |
+| `--failed-only`   | boolean | Only devices where the install failed.                       |
 | `--top`           | number  | Maximum results to return. (default `50`)                    |
 | `--all`           | boolean | Return every result (pages through everything; can be slow). |
 
@@ -2718,6 +2719,7 @@ Examples:
 
 ```sh
 tenantctl intune apps status "Company Portal"
+tenantctl intune apps status "Zoom" --failed-only
 ```
 
 Permissions: delegated `DeviceManagementApps.Read.All`; application `DeviceManagementApps.Read.All`; role Intune Administrator or Global Reader
