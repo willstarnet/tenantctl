@@ -286,33 +286,22 @@ function reportRows(page: ReportPage): ReportRow[] {
   });
 }
 
-/** Every configuration policy row the Intune portal shows for one device, one row per policy per user context. */
-export async function deviceConfigurationReport(ctx: Context, deviceId: string): Promise<ReportRow[]> {
-  const types = Object.keys(CONFIG_REPORT_KINDS)
-    .map((type) => `(PolicyBaseTypeName eq ${odata(type)})`)
-    .join(' or ');
+/**
+ * Every row of an Intune report action (`/deviceManagement/reports/<action>`), paging with skip/top until
+ * TotalRowCount (or a short page) says the report is done.
+ */
+export async function fetchReportRows(
+  ctx: Context,
+  action: string,
+  body: Record<string, unknown>,
+  what: string,
+): Promise<ReportRow[]> {
   const rows: ReportRow[] = [];
   for (let page = 0; page < REPORT_MAX_PAGES; page++) {
     const result = parseReport(
       await ctx.graph.post(
-        '/deviceManagement/reports/getConfigurationPoliciesReportForDevice',
-        {
-          select: [
-            'IntuneDeviceId',
-            'PolicyBaseTypeName',
-            'PolicyId',
-            'PolicyStatus',
-            'UPN',
-            'UserId',
-            'PspdpuLastModifiedTimeUtc',
-            'PolicyName',
-            'UnifiedPolicyType',
-          ],
-          filter: `(${types}) and (IntuneDeviceId eq ${odata(deviceId)})`,
-          skip: rows.length,
-          top: REPORT_PAGE,
-          orderBy: ['PolicyName'],
-        },
+        `/deviceManagement/reports/${action}`,
+        { ...body, skip: rows.length, top: REPORT_PAGE },
         { version: 'beta' },
       ),
     );
@@ -322,8 +311,35 @@ export async function deviceConfigurationReport(ctx: Context, deviceId: string):
     // Trust TotalRowCount when Intune sends it; without one, a short page is the last page.
     if (!batch.length || (typeof total === 'number' ? rows.length >= total : batch.length < REPORT_PAGE)) return rows;
   }
-  ctx.log(`The device report has more than ${rows.length} rows; showing the first ${rows.length}.`);
+  ctx.log(`The ${what} report has more than ${rows.length} rows; showing the first ${rows.length}.`);
   return rows;
+}
+
+/** Every configuration policy row the Intune portal shows for one device, one row per policy per user context. */
+export function deviceConfigurationReport(ctx: Context, deviceId: string): Promise<ReportRow[]> {
+  const types = Object.keys(CONFIG_REPORT_KINDS)
+    .map((type) => `(PolicyBaseTypeName eq ${odata(type)})`)
+    .join(' or ');
+  return fetchReportRows(
+    ctx,
+    'getConfigurationPoliciesReportForDevice',
+    {
+      select: [
+        'IntuneDeviceId',
+        'PolicyBaseTypeName',
+        'PolicyId',
+        'PolicyStatus',
+        'UPN',
+        'UserId',
+        'PspdpuLastModifiedTimeUtc',
+        'PolicyName',
+        'UnifiedPolicyType',
+      ],
+      filter: `(${types}) and (IntuneDeviceId eq ${odata(deviceId)})`,
+      orderBy: ['PolicyName'],
+    },
+    'device',
+  );
 }
 
 interface UserContext {

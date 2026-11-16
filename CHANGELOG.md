@@ -6,6 +6,13 @@ All notable changes are listed here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- `intune apps status` failed for every app: Microsoft removed the `installSummary` and `deviceStatuses` endpoints.
+  It now reads the Intune app install reports, the same data as the admin center, and lists every targeted device
+  with its install state (failed first), detail and error code. `--failed-only` keeps failed rows; `summary` is null
+  until Intune has results for a newly assigned app. The `failures` field is replaced by `devices`.
+
 ## [0.2.1] - 2026-11-16
 
 ### Added

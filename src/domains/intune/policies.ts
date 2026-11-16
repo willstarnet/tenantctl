@@ -2,7 +2,7 @@ import { existsSync, lstatSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve, sep } from 'node:path';
 import { configDir } from '../../core/config.ts';
 import { CliError } from '../../core/errors.ts';
-import { seg } from '../../core/graph.ts';
+import { odata, seg } from '../../core/graph.ts';
 import { LIST_ARGS, listLimit } from '../../core/listing.ts';
 import { type AnyCommand, type Context, defineCommand, type ListResult } from '../../core/types.ts';
 import { attempt, compact, settle, shellQuote } from '../../core/util.ts';
@@ -27,7 +27,7 @@ import {
   scan,
   shapeManagedDevice,
 } from './common.ts';
-import { complianceSummary, type PolicyState, shapePolicyStates } from './devices.ts';
+import { complianceSummary, fetchReportRows, type PolicyState, type ReportRow, shapePolicyStates } from './devices.ts';
 
 const CONCURRENCY = 5;
 const ALL = Number.POSITIVE_INFINITY;
@@ -40,6 +40,63 @@ const FAILING_ONLY_ARG = {
 } as const;
 
 const FAILING_STATUS: Record<string, true> = { nonCompliant: true, error: true, conflict: true };
+
+function num(value: unknown): number | undefined {
+  return typeof value === 'number' ? value : undefined;
+}
+
+function text(value: unknown): string | null {
+  return typeof value === 'string' && value !== '' ? value : null;
+}
+
+/** One getAppStatusOverviewReport row; null when Intune has no results for the app yet. */
+function shapeAppSummary(row: ReportRow | undefined): Record<string, unknown> | null {
+  if (!row) return null;
+  return compact({
+    installedDevices: num(row.InstalledDeviceCount),
+    failedDevices: num(row.FailedDeviceCount),
+    pendingDevices: num(row.PendingInstallDeviceCount),
+    notInstalledDevices: num(row.NotInstalledDeviceCount),
+    notApplicableDevices: num(row.NotApplicableDeviceCount),
+    installedUsers: num(row.InstalledUserCount),
+    failedUsers: num(row.FailedUserCount),
+    pendingUsers: num(row.PendingInstallUserCount),
+  });
+}
+
+const NO_USER = '00000000-0000-0000-0000-000000000000';
+
+/** Sort key for AppInstallState_loc ("Failed", "Install Pending", "Not Installed", "Installed", "Not Applicable"). */
+function appStateRank(state: string): number {
+  const s = state.toLowerCase();
+  if (s.includes('fail')) return 0;
+  if (s.includes('pending')) return 1;
+  if (s.includes('not installed')) return 2;
+  if (s.includes('not applicable')) return 4;
+  return 3;
+}
+
+function shapeAppDevices(rows: ReportRow[], args: { failedOnly?: boolean; top: number; all: boolean }) {
+  const shaped = rows
+    .map((r) => {
+      const code = num(r.ErrorCode);
+      return compact({
+        device: text(r.DeviceName),
+        deviceId: text(r.DeviceId),
+        user: r.UserId === NO_USER ? null : text(r.UserPrincipalName),
+        platform: text(r.Platform),
+        appVersion: text(r.AppVersion),
+        state: text(r.AppInstallState_loc) ?? 'unknown',
+        detail: text(r.AppInstallStateDetails_loc),
+        errorCode: text(r.HexErrorCode) ?? (code ? `0x${(code >>> 0).toString(16).toUpperCase()}` : null),
+        lastModifiedDateTime: text(r.LastModifiedDateTime),
+      });
+    })
+    .filter((d) => !args.failedOnly || appStateRank(String(d.state)) === 0)
+    .sort((a, b) => appStateRank(String(a.state)) - appStateRank(String(b.state)));
+  const limit = listLimit(args);
+  return { items: shaped.slice(0, limit), truncated: shaped.length > limit };
+}
 
 interface DeviceStatus {
   id: string;
@@ -786,70 +843,34 @@ export const commands: AnyCommand[] = [
   defineCommand({
     domain: 'intune',
     name: 'apps status',
-    summary: 'Install summary of an app and the devices where it failed, with error codes',
+    summary: 'Install summary of an app and its state on every targeted device, with error codes',
     description:
       'Use for "did Zoom install on everyone" or "why did the app fail on Bob\'s laptop". summary has device and ' +
-      'user counts (installed, failed, pending, notInstalled, notApplicable); failures lists devices with ' +
-      'errorCode (hex, searchable in Microsoft docs) and installStateDetail. (beta API; per-device statuses ' +
-      'are not populated for every app type.)',
-    examples: ['tenantctl intune apps status "Company Portal"'],
+      'user counts (installed, failed, pending, notInstalled, notApplicable), or is null until Intune has ' +
+      'results for a newly assigned app. devices has one row per device and user context (the system row has ' +
+      'no user), failed first, with state, detail and errorCode (hex, searchable in Microsoft docs). ' +
+      '--failed-only keeps failed rows. Reads the Intune app install reports, the same data as the admin ' +
+      'center (beta API).',
+    examples: ['tenantctl intune apps status "Company Portal"', 'tenantctl intune apps status "Zoom" --failed-only'],
     args: [
       { name: 'app', type: 'string', required: true, positional: true, description: 'App name or id.' },
+      { name: 'failedOnly', type: 'boolean', description: 'Only devices where the install failed.' },
       ...LIST_ARGS,
     ],
     risk: 'read',
     permissions: { delegated: [READ_APPS], application: [READ_APPS], roles: INTUNE_READ_ROLES },
     async run(ctx, args) {
       const app = await resolveCatalogItem(ctx, APPS_PATH, args.app, 'app');
-      const base = `${APPS_PATH}/${seg(app.id)}`;
+      const filter = `(ApplicationId eq ${odata(app.id)})`;
       const sections = await settle({
-        summary: ctx.graph.get<Record<string, unknown>>(`${base}/installSummary`, { version: 'beta' }),
-        failures: scan<Record<string, unknown>>(
-          ctx,
-          `${base}/deviceStatuses`,
-          {},
-          (s) => s.installState === 'failed' || s.installState === 'uninstallFailed',
-          listLimit(args),
-          'beta',
-        ),
+        summary: fetchReportRows(ctx, 'getAppStatusOverviewReport', { filter }, 'app status'),
+        devices: fetchReportRows(ctx, 'retrieveDeviceAppInstallationStatusReport', { filter }, 'app install'),
       });
       if (ctx.full) return { app, ...sections };
-      const summary = sections.summary;
       return {
         app: { id: app.id, name: app.displayName ?? null, type: odataType(app) },
-        summary:
-          'error' in summary
-            ? summary
-            : compact({
-                installedDevices: summary.installedDeviceCount,
-                failedDevices: summary.failedDeviceCount,
-                pendingDevices: summary.pendingInstallDeviceCount,
-                notInstalledDevices: summary.notInstalledDeviceCount,
-                notApplicableDevices: summary.notApplicableDeviceCount,
-                installedUsers: summary.installedUserCount,
-                failedUsers: summary.failedUserCount,
-              }),
-        failures:
-          'error' in sections.failures
-            ? sections.failures
-            : {
-                items: sections.failures.items.map((s) =>
-                  compact({
-                    device: s.deviceName ?? null,
-                    deviceId: s.deviceId ?? null,
-                    user: s.userPrincipalName ?? null,
-                    os: [s.osDescription, s.osVersion].filter(Boolean).join(' ') || null,
-                    state: s.installState ?? null,
-                    detail: s.installStateDetail ?? null,
-                    errorCode:
-                      typeof s.errorCode === 'number' && s.errorCode !== 0
-                        ? `0x${(s.errorCode >>> 0).toString(16).toUpperCase()}`
-                        : null,
-                    lastSyncDateTime: s.lastSyncDateTime ?? null,
-                  }),
-                ),
-                truncated: sections.failures.truncated,
-              },
+        summary: 'error' in sections.summary ? sections.summary : shapeAppSummary(sections.summary[0]),
+        devices: 'error' in sections.devices ? sections.devices : shapeAppDevices(sections.devices, args),
       };
     },
   }),
