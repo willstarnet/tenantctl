@@ -148,9 +148,10 @@ describe('write gating and confirmation', () => {
   });
 
   test('writes disabled by default', async () => {
+    const start = runs;
     const error = (await runCommand(wipe, ['pc1'], []).catch((e: unknown) => e)) as CliError;
     expect(error.code).toBe('WRITES_DISABLED');
-    expect(runs).toBe(0);
+    expect(runs).toBe(start);
   });
 
   test('dry run previews even with writes disabled', async () => {
@@ -162,9 +163,12 @@ describe('write gating and confirmation', () => {
   });
 
   test('destructive needs a token bound to the same args; the token then executes it', async () => {
+    // The audit log is shared by every test in the process; only look at what this test appends.
+    const before = existsSync(auditLogPath()) ? readFileSync(auditLogPath(), 'utf8').length : 0;
+    const start = runs;
     const first = await runCommand(wipe, ['pc1'], [], { allowWrites: true });
     expect(first.outcome.kind).toBe('confirm');
-    expect(runs).toBe(0);
+    expect(runs).toBe(start);
     const token = first.outcome.kind === 'confirm' ? first.outcome.token : '';
     const wrongTarget = (await runCommand(wipe, ['pc2'], [], { allowWrites: true, confirm: token }).catch(
       (e: unknown) => e,
@@ -172,8 +176,9 @@ describe('write gating and confirmation', () => {
     expect(wrongTarget.code).toBe('CONFIRM_INVALID');
     const second = await runCommand(wipe, ['pc1'], [], { allowWrites: true, confirm: token });
     expect(second.outcome).toEqual({ kind: 'result', result: { done: true } });
-    expect(runs).toBe(1);
+    expect(runs).toBe(start + 1);
     const log = readFileSync(auditLogPath(), 'utf8')
+      .slice(before)
       .trim()
       .split('\n')
       .map((l) => JSON.parse(l) as { outcome: string });
