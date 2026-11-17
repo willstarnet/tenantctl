@@ -6,6 +6,14 @@ All notable changes are listed here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- Approval dialogs and terminal prompts are readable: the action comes first, then the tenant and command, every
+  warning in full, and the details as labelled, indented fields (short dates, yes/no, long lists cut to the first
+  three) instead of a line of raw JSON. Very long previews end with a pointer to `--dry-run` for the rest.
+- The terminal approval prompt asks `Approve this change? [y/N]` instead of making you type `APPROVE`; Enter or
+  anything other than y/yes cancels.
+
 ## [0.2.2] - 2026-11-16
 
 ### Fixed

@@ -120,7 +120,7 @@ function ttyApprove(summary: string): boolean {
     throw unavailable('no controlling terminal');
   }
   try {
-    writeSync(fd, `\n${summary}\n\nType APPROVE to make this change (anything else cancels): `);
+    writeSync(fd, `\n${DIALOG_TITLE}\n\n${summary}\n\nApprove this change? [y/N] `);
     const buffer = Buffer.alloc(256);
     let answer = '';
     while (!answer.includes('\n')) {
@@ -128,7 +128,7 @@ function ttyApprove(summary: string): boolean {
       if (read <= 0) break;
       answer += buffer.toString('utf8', 0, read);
     }
-    const approved = answer.trim() === 'APPROVE';
+    const approved = /^y(es)?$/i.test(answer.trim());
     writeSync(fd, approved ? 'Approved.\n' : 'Cancelled.\n');
     return approved;
   } finally {
@@ -151,22 +151,147 @@ export function approverFor(mode: ConcreteMode): Approver {
   return async (summary) => dialogApprove(summary);
 }
 
+/** Bounds that keep a dialog on screen: detail lines, characters per value, items per list. */
+const DETAIL_LINES = 30;
+const VALUE_CHARS = 160;
+const LIST_ITEMS = 3;
+const INDENT = '  ';
+/** Shown in the header, or (targetId) an internal binding already visible in the target's own fields. */
+const HEADER_KEYS: Record<string, true> = { action: true, warnings: true, targetId: true };
+const ACRONYMS: Record<string, string> = {
+  api: 'API',
+  id: 'ID',
+  ids: 'IDs',
+  imei: 'IMEI',
+  ip: 'IP',
+  mfa: 'MFA',
+  os: 'OS',
+  sku: 'SKU',
+  smtp: 'SMTP',
+  upn: 'UPN',
+  url: 'URL',
+};
+const ISO_DATE = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})(?::\d{2}(?:\.\d+)?)?(Z|[+-]\d{2}:\d{2})$/;
+
+type Scalar = string | number | boolean;
+type Fields = Record<string, unknown>;
+type Request = { method: string; path: string; version?: unknown; body?: unknown };
+
+const isFields = (value: unknown): value is Fields =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+const isScalar = (value: unknown): value is Scalar =>
+  typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean';
+const isRequest = (value: unknown): value is Request =>
+  isFields(value) && typeof value.method === 'string' && typeof value.path === 'string';
+
+function isEmpty(value: unknown): boolean {
+  if (value === null || value === undefined || value === '') return true;
+  if (Array.isArray(value)) return value.every(isEmpty);
+  if (isFields(value)) return Object.values(value).every(isEmpty);
+  return false;
+}
+
+/** `lastSyncDateTime` → `Last sync`, `userPrincipalName` → `User principal name`, `osVersion` → `OS version`. */
+function label(key: string): string {
+  const words = (key.replace(/DateTime$/, '') || key)
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
+    .split(/[\s_-]+/)
+    .filter(Boolean)
+    .map((word) => word.toLowerCase())
+    .map((word) => (Object.hasOwn(ACRONYMS, word) ? ACRONYMS[word] : word));
+  const first = words[0] ?? key;
+  words[0] = first.charAt(0).toUpperCase() + first.slice(1);
+  return words.join(' ');
+}
+
+function scalar(value: Scalar): string {
+  if (typeof value === 'boolean') return value ? 'yes' : 'no';
+  if (typeof value === 'number') return String(value);
+  const date = ISO_DATE.exec(value);
+  if (date) return `${date[1]} ${date[2]} ${date[3] === 'Z' ? 'UTC' : date[3]}`;
+  const flat = value.replace(/\s+/g, ' ').trim();
+  return flat.length > VALUE_CHARS ? `${flat.slice(0, VALUE_CHARS - 1)}…` : flat;
+}
+
+function renderFields(fields: Fields, depth: number, out: string[]): void {
+  for (const [key, value] of Object.entries(fields)) renderField(label(key), value, depth, out);
+}
+
+function renderField(name: string, value: unknown, depth: number, out: string[]): void {
+  if (isEmpty(value)) return;
+  const pad = INDENT.repeat(depth);
+  if (isRequest(value)) {
+    const version = isScalar(value.version) ? ` (${scalar(value.version)})` : '';
+    out.push(`${pad}${name}: ${value.method} ${value.path}${version}`);
+    renderField('Body', value.body, depth + 1, out);
+  } else if (Array.isArray(value)) {
+    renderList(
+      name,
+      value.filter((item) => !isEmpty(item)),
+      depth,
+      out,
+    );
+  } else if (isFields(value)) {
+    out.push(`${pad}${name}:`);
+    renderFields(value, depth + 1, out);
+  } else {
+    out.push(`${pad}${name}: ${isScalar(value) ? scalar(value) : String(value)}`);
+  }
+}
+
+/** Short scalar lists stay on one line; anything else becomes bullets, capped at LIST_ITEMS. */
+function renderList(name: string, items: unknown[], depth: number, out: string[]): void {
+  const pad = INDENT.repeat(depth);
+  if (items.every(isScalar)) {
+    const inline = items.map(scalar).join(', ');
+    if (inline.length <= VALUE_CHARS) {
+      out.push(`${pad}${name}: ${inline}`);
+      return;
+    }
+  }
+  out.push(`${pad}${name} (${items.length}):`);
+  for (const item of items.slice(0, LIST_ITEMS)) {
+    const lines: string[] = [];
+    if (isFields(item) && !isRequest(item)) renderFields(item, depth + 2, lines);
+    else renderField('', item, depth + 2, lines);
+    // The first line of each item carries the bullet; `- ` is as wide as INDENT, so later lines stay aligned.
+    const [first = '', ...rest] = lines;
+    out.push(`${pad}${INDENT}- ${first.trimStart().replace(/^: /, '')}`, ...rest);
+  }
+  if (items.length > LIST_ITEMS) out.push(`${pad}${INDENT}… and ${items.length - LIST_ITEMS} more`);
+}
+
 /**
- * Plain-text summary of a preview for a dialog or terminal prompt, bounded so dialogs stay readable. `action` and
- * every `warnings` entry are shown in full first; only the remaining detail is cut.
+ * Readable plain-text summary of a preview for a dialog or terminal prompt. The action, target tenant and every
+ * warning are shown in full first; the remaining detail is laid out as labelled, indented fields and bounded so
+ * dialogs stay on screen.
  */
 export function approvalSummary(commandId: string, profileLabel: string, preview: unknown): string {
-  const lines = [`tenantctl ${commandId}`, `Tenant/profile: ${profileLabel}`];
-  if (preview && typeof preview === 'object') {
-    const action = 'action' in preview && typeof preview.action === 'string' ? preview.action : null;
-    if (action) lines.push('', action);
-    const warnings =
-      'warnings' in preview && Array.isArray(preview.warnings)
-        ? preview.warnings.filter((w): w is string => typeof w === 'string')
-        : [];
-    if (warnings.length) lines.push('', ...warnings.map((w) => `! ${w}`));
-    const detail = JSON.stringify(preview, null, 1).replace(/\n\s*/g, ' ');
-    lines.push('', detail.length > 700 ? `${detail.slice(0, 699)}…` : detail);
+  const fields = isFields(preview) ? preview : {};
+  const lines: string[] = [];
+  if (typeof fields.action === 'string') lines.push(fields.action, '');
+  lines.push(`Tenant: ${profileLabel}`, `Command: tenantctl ${commandId}`);
+
+  const warnings = Array.isArray(fields.warnings)
+    ? fields.warnings.filter((w): w is string => typeof w === 'string')
+    : [];
+  if (warnings.length) lines.push('', ...warnings.map((w) => `Warning: ${w}`));
+
+  const detail: string[] = [];
+  if (isFields(preview)) {
+    renderFields(
+      Object.fromEntries(Object.entries(preview).filter(([key]) => !Object.hasOwn(HEADER_KEYS, key))),
+      0,
+      detail,
+    );
+  } else {
+    renderField('Details', preview, 0, detail);
   }
+  if (detail.length > DETAIL_LINES) {
+    const hidden = detail.length - (DETAIL_LINES - 1);
+    detail.splice(DETAIL_LINES - 1, Infinity, `… ${hidden} more lines; add --dry-run to see the full preview`);
+  }
+  if (detail.length) lines.push('', ...detail);
   return lines.join('\n');
 }
