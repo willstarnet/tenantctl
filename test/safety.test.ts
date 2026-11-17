@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
-import { effectiveConfirmMode, weakens } from '../src/core/approval.ts';
+import { approvalSummary, effectiveConfirmMode, weakens } from '../src/core/approval.ts';
 import { loadConfig } from '../src/core/config.ts';
 import type { CliError } from '../src/core/errors.ts';
 import { auditLogPath } from '../src/core/safety.ts';
@@ -25,6 +25,39 @@ describe('human approval mode', () => {
   test('moving to a weaker mode is detected', () => {
     expect(weakens({ authMode: 'delegated', confirmMode: 'dialog' }, 'token')).toBe(true);
     expect(weakens({ authMode: 'delegated', confirmMode: 'token' }, 'tty')).toBe(false);
+  });
+
+  test('the approval summary reads as labelled fields, keeps warnings whole and stays bounded', () => {
+    const longWarning = `Last synced 41 days ago. ${'x'.repeat(900)}`;
+    const summary = approvalSummary('intune devices wipe', 'prod (contoso.onmicrosoft.com)', {
+      action: 'Wipe "PC1"',
+      warnings: [longWarning],
+      targetId: 'd1',
+      device: { deviceName: 'PC1', serialNumber: null, lastSyncDateTime: '2026-10-07T08:12:44Z' },
+      request: { method: 'POST', path: '/deviceManagement/managedDevices/d1/wipe', body: { keepUserData: false } },
+      rows: Array.from({ length: 50 }, (_, i) => ({ line: i, upn: `u${i}@contoso.com` })),
+    });
+    const lines = summary.split('\n');
+    expect(lines.slice(0, 4)).toEqual([
+      'Wipe "PC1"',
+      '',
+      'Tenant: prod (contoso.onmicrosoft.com)',
+      'Command: tenantctl intune devices wipe',
+    ]);
+    expect(lines).toContain(`Warning: ${longWarning}`);
+    expect(lines).toContain('  Device name: PC1');
+    expect(lines).toContain('  Last sync: 2026-10-07 08:12 UTC');
+    expect(summary).not.toContain('Serial');
+    expect(lines).toContain('Request: POST /deviceManagement/managedDevices/d1/wipe');
+    expect(lines).toContain('    Keep user data: no');
+    expect(lines).toContain('  - Line: 0');
+    expect(lines).toContain('    UPN: u0@contoso.com');
+    expect(lines).toContain('  … and 47 more');
+    expect(summary).not.toContain('{');
+
+    const many = approvalSummary('x', 'p', Object.fromEntries(Array.from({ length: 60 }, (_, i) => [`field${i}`, i])));
+    expect(many.split('\n').length).toBeLessThan(40);
+    expect(many).toContain('more lines; add --dry-run to see the full preview');
   });
 
   let wiped = 0;
