@@ -28,7 +28,7 @@
     "smoke:live": "bun run scripts/smoke-live.ts"
   },
   "dependencies": {
-    "@azure/msal-node": "^7.2.1"
+    "@azure/msal-node": "^7.2.2"
   },
   "devDependencies": {
     "@types/bun": "^1.3.14",
