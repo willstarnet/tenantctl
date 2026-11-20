@@ -18,6 +18,7 @@ import {
   resolveManagedDevice,
   shapeManagedDevice,
 } from './common.ts';
+import { fetchSyncStatus, shapeStages, syncState } from './syncStatus.ts';
 
 const DEVICE_ARG = {
   name: 'device',
@@ -860,6 +861,27 @@ export const commands: AnyCommand[] = [
           }),
         ),
       };
+    },
+  }),
+  defineCommand({
+    domain: 'intune',
+    name: 'devices sync-status',
+    summary: 'Show the stages of the latest device sync (notified, connected, policies, apps, scripts)',
+    description:
+      'The admin center\'s "Device sync status" pane for the most recent sync, whoever started it. state: ' +
+      'waitingForDevice (Intune notified it but the device has not connected: it must be on and online), ' +
+      'inProgress, succeeded, partialSuccess (e.g. policies "35/37"), failed. Compliance can stay inProgress for ' +
+      "several minutes after the rest and doesn't affect state. Empty stages: no recent sync, run `devices sync`. " +
+      'Windows and iOS/iPadOS. (beta API, not yet in the Graph reference)',
+    examples: ['tenantctl intune devices sync-status DESKTOP-4F2K9'],
+    args: [DEVICE_ARG],
+    risk: 'read',
+    permissions: { delegated: [READ_DEVICES], application: [READ_DEVICES], roles: INTUNE_READ_ROLES },
+    async run(ctx, args) {
+      const device = await resolveManagedDevice(ctx, args.device);
+      const components = await fetchSyncStatus(ctx, device.id);
+      if (ctx.full) return { device, components };
+      return { device: deviceSummary(device), state: syncState(components), stages: shapeStages(components) };
     },
   }),
 ];

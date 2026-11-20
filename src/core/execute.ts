@@ -4,6 +4,7 @@ import { Authenticator, decodeClaims } from './auth.ts';
 import { DEFAULT_GRAPH_URL, type Profile, readSecrets, writesEnabled } from './config.ts';
 import { CliError } from './errors.ts';
 import { createExoRunner, type ExoRunner } from './exo.ts';
+import { type LiveRegion, terminalRegion } from './live.ts';
 import { GraphClient } from './graph.ts';
 import {
   appendAudit,
@@ -35,6 +36,8 @@ export interface RunEnvironment {
   approver?: Approver;
   /** Exchange PowerShell runner; tests inject a fake. */
   exo?: ExoRunner;
+  /** Progress panel factory: default is a stderr region when stderr is a terminal; `null` turns it off (tests). */
+  live?: (() => LiveRegion) | null;
 }
 
 export type Outcome =
@@ -85,6 +88,12 @@ export function createContext(env: RunEnvironment, options: Pick<GlobalOptions, 
     profileName: env.profileName,
     profile: env.profile,
     full: options.full,
+    live:
+      env.live === undefined
+        ? process.stderr.isTTY
+          ? () => terminalRegion(process.stderr)
+          : undefined
+        : (env.live ?? undefined),
     log,
     async requireApproval(summary) {
       if (!(await approver(summary))) {

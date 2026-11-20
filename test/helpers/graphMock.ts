@@ -196,6 +196,7 @@ export async function runCommand(
       log: () => {},
       approver: async () => options.approve ?? true,
       exo: options.exo ?? fakeExo(),
+      live: null,
     },
   );
   return { outcome, calls: mock.calls };
