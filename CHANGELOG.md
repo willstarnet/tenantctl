@@ -6,6 +6,14 @@ All notable changes are listed here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- `intune devices sync` follows the sync like the admin center's "Device sync status" pane: in an interactive
+  terminal a live panel on stderr shows each stage (notifying the device, device connecting, policies,
+  applications, scripts, compliance) with a progress bar, for up to 300 s. Elsewhere it still returns at once;
+  `--wait-seconds N` waits and adds `sync.state` and `sync.stages` to the result, `--wait-seconds 0` never waits.
+- `intune devices sync-status`: the stages and outcome of a device's latest sync, whoever started it.
+
 ## [0.2.3] - 2026-11-17
 
 ### Changed

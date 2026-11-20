@@ -1,6 +1,7 @@
 import type { Profile } from './config.ts';
 import type { ExoRunner } from './exo.ts';
 import type { GraphClient } from './graph.ts';
+import type { LiveRegion } from './live.ts';
 
 export type ArgType = 'string' | 'number' | 'boolean' | 'string[]';
 
@@ -83,6 +84,11 @@ export interface Context {
   readonly full: boolean;
   /** Progress/diagnostic output to stderr; never to stdout. */
   log(message: string): void;
+  /**
+   * Start a progress panel redrawn in place on stderr. Undefined when stderr is not an interactive terminal
+   * (agents, pipes, tests), so commands fall back to plain results.
+   */
+  readonly live?: () => LiveRegion;
   /**
    * Ask the human (terminal or OS dialog, per the profile's confirm mode) and throw DENIED unless they approve.
    * The executor calls this for destructive commands; commands call it only for local security settings.

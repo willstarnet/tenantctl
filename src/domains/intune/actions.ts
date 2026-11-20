@@ -15,6 +15,7 @@ import {
   resolveManagedDevice,
   WRITE_DEVICES,
 } from './common.ts';
+import { DONE_STATES, waitForSync } from './syncStatus.ts';
 
 const DEVICE_ARG: ArgSpec = {
   name: 'device',
@@ -54,6 +55,11 @@ interface ActionSpec {
   describe: (device: ManagedDevice, args: Args) => string;
   /** Extra argument checks that depend on the device. */
   validate?: (device: ManagedDevice, args: Args) => void;
+  /**
+   * Runs after the request was sent (`sentAt` = ms just before it); its fields are added to the result and
+   * replace `next`.
+   */
+  after?: (ctx: Context, device: ManagedDevice, args: Args, sentAt: number) => Promise<Record<string, unknown>>;
 }
 
 function checkPlatform(spec: ActionSpec, device: ManagedDevice): void {
@@ -109,6 +115,7 @@ function deviceAction(spec: ActionSpec): AnyCommand {
       const device = await target(ctx, spec, args);
       requireApprovedTarget(approved, device.id, 'device');
       const options = { version: spec.version };
+      const sentAt = Date.now();
       const response = spec.action
         ? await ctx.graph.post(requestPath(device), spec.body?.(args, device), options)
         : await ctx.graph.delete(requestPath(device), options);
@@ -120,6 +127,7 @@ function deviceAction(spec: ActionSpec): AnyCommand {
         next: spec.action
           ? `The device acts on this at its next check-in. Track it with \`tenantctl intune devices actions ${shellQuote(device.deviceName ?? device.id)}\`.`
           : undefined,
+        ...(await spec.after?.(ctx, device, args, sentAt)),
       };
     },
   });
@@ -143,13 +151,51 @@ export const commands: AnyCommand[] = [
     summary: 'Ask a device to check in with Intune now',
     description:
       'Use after changing a policy, assignment or app so the device picks it up without waiting for the next ' +
-      'scheduled check-in (about every 8 hours). The device must be online; check lastSyncDateTime with ' +
-      '`devices get` a few minutes later.',
-    examples: ['tenantctl intune devices sync DESKTOP-4F2K9'],
+      'scheduled check-in (about every 8 hours). In an interactive terminal it then shows each stage live on ' +
+      'stderr (notifying the device, device connecting, policies, applications, scripts, compliance) for up to ' +
+      '300 s, like the admin center\'s "Device sync status" pane. Otherwise it returns once the request is sent; ' +
+      'pass --wait-seconds to wait and get `sync.state` (succeeded, partialSuccess, failed, or waitingForDevice ' +
+      'when the device is off or offline) and `sync.stages`. Stage tracking uses a beta API.',
+    examples: [
+      'tenantctl intune devices sync DESKTOP-4F2K9',
+      'tenantctl intune devices sync DESKTOP-4F2K9 --wait-seconds 180',
+      'tenantctl intune devices sync DESKTOP-4F2K9 --wait-seconds 0',
+    ],
     risk: 'write',
     action: 'syncDevice',
     permission: PRIVILEGED_OPS,
+    args: [
+      {
+        name: 'waitSeconds',
+        type: 'number',
+        description:
+          'How long to follow the sync stages; 0 returns once the request is sent. Default: 300 in an ' +
+          'interactive terminal, 0 otherwise.',
+      },
+    ],
+    validate: (_d, args) => {
+      if (args.waitSeconds !== undefined && (Number(args.waitSeconds) < 0 || Number(args.waitSeconds) > 3600)) {
+        throw new CliError('USAGE', '--wait-seconds must be between 0 and 3600');
+      }
+    },
     describe: (d) => `Send a sync (check-in) request to ${name(d)}.`,
+    async after(ctx, device, args, sentAt) {
+      const live = ctx.live?.();
+      const seconds = args.waitSeconds === undefined ? (live ? 300 : 0) : Number(args.waitSeconds);
+      const status = `tenantctl intune devices sync-status ${shellQuote(name(device))}`;
+      if (!seconds) return { next: `Follow the sync stages with \`${status}\`.` };
+      const sync = await waitForSync(ctx, device.id, sentAt, {
+        timeoutSeconds: seconds,
+        deviceName: name(device),
+        live,
+      });
+      return {
+        sync,
+        next: DONE_STATES.has(sync.state)
+          ? undefined
+          : `Still ${sync.state} after ${sync.waitedSeconds} s. Re-check with \`${status}\`.`,
+      };
+    },
   }),
   deviceAction({
     name: 'restart',

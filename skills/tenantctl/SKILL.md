@@ -86,7 +86,8 @@ device, and `tenantctl entra users tap <x>` so they can register the new one.
 
 1. `tenantctl troubleshoot device <name or serial>`. `findings[0].detail` names the failing setting.
 2. Fixes: the user turns on the setting (e.g. BitLocker or an OS update), then `tenantctl intune devices sync
-   <device>` (write).
+   <device> --wait-seconds 180` (write). `sync.state` says whether it finished; `waitingForDevice` means the
+   device is off or offline. `tenantctl intune devices sync-status <device>` re-checks later.
 3. Stale check-in: the device must be powered on and online to sync.
 
 **Lost or stolen device**
