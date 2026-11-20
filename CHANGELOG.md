@@ -6,6 +6,8 @@ All notable changes are listed here. The format follows
 
 ## [Unreleased]
 
+## [0.2.4] - 2026-11-20
+
 ### Added
 
 - `intune devices sync` follows the sync like the admin center's "Device sync status" pane: in an interactive
@@ -139,7 +141,8 @@ All notable changes are listed here. The format follows
 - First version as `m365`: Entra ID, Intune, Defender, Exchange Online, SharePoint/OneDrive, Purview audit, Teams
   and service health commands, `troubleshoot` diagnostics, write gating with human approval, and an audit log.
 
-[Unreleased]: https://github.com/willstarnet/tenantctl/compare/v0.2.3...HEAD
+[Unreleased]: https://github.com/willstarnet/tenantctl/compare/v0.2.4...HEAD
+[0.2.4]: https://github.com/willstarnet/tenantctl/compare/v0.2.3...v0.2.4
 [0.2.3]: https://github.com/willstarnet/tenantctl/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/willstarnet/tenantctl/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/willstarnet/tenantctl/compare/v0.2.0...v0.2.1
